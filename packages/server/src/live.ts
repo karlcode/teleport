@@ -119,5 +119,7 @@ export type ServerEvent =
   | { type: 'call'; id: string; by: Caller; what: string; phase: 'start' | 'end'; ms?: number; error?: string }
   /** A request a device made through teleport, as it finished. `id` is the device it came from, null when no device is connected from that address. */
   | { type: 'request'; id: string | null; ip: string; method: string; url: string; status: number; ms: number; failed?: string; document: boolean }
+  /** A test run reserved the device, as `as`; null when it let go or its time ran out. */
+  | { type: 'hold'; id: string; as: string | null }
   /** A trial's progress on a device. */
   | { type: 'trial'; id: string; by: Caller; name: string; done: number; total: number; phase: 'start' | 'run' | 'end' };

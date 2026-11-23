@@ -193,6 +193,8 @@ export interface DutView {
   governor: number;
   /** What the page threw since it loaded. */
   errors: number;
+  /** The test run that holds it, by name. */
+  held?: string | null;
   /** A reload was asked for: ms left of the time it has to come back. */
   reloadMs: number | null;
 }
@@ -252,6 +254,10 @@ export interface ViewState {
   /** The right side: the highlighted entry opened up, for a width and a height. */
   pane: (w: number, h: number) => string[];
   input: InputView | null;
+  /** The keys that act now, each with a word for what it does: the last line, most useful first. */
+  keys?: [string, string][];
+  /** Nothing is open on the right: with no device either, it says how to get one, centred. */
+  idle?: boolean;
 }
 
 /** The list's width with its group labels, and without them on a narrow terminal. */
@@ -265,6 +271,10 @@ const ABOVE = 6;
 const MIN_LIST = 6;
 /** The two columns are this tall when the terminal has the rows, however short the list. */
 const PANE_ROWS = 18;
+/** From this many rows the last line names the keys that act now. */
+const KEYS_ROWS = 20;
+/** Rows the region needs besides the list, for every group to stay open: rules, a device row, the input, the keys, a few of the log. */
+const AROUND = 14;
 
 /**
  * The live region for a terminal of `cols` by `rows`, at most rows - 1 lines: a rule, then two
@@ -290,6 +300,7 @@ export function view(s: ViewState, cols: number, rows: number): string[] {
   const row = (c: Cells) => fit(pad(c.head, headW), [...(c.main ? [pad(c.main, mainW)] : []), ...(c.heap ? [pad(c.heap, heapW)] : []), ...c.rest], cols, gap);
 
   const bottom = s.input ? [inputLine(s, cols)] : s.remote ? [remoteLine(s, cols)] : footer(s, cols);
+  if (s.keys?.length && rows >= KEYS_ROWS) bottom.push(keyLine(s.keys, w, s));
   let room = rows - 1 - 2 - bottom.length - (sel || !s.gone.length ? 1 : 0);
   // The list takes what is left once the header and a few log lines have theirs, and scrolls if that is short.
   // The right side needs room for an answer even while the list is only its five groups.
@@ -306,14 +317,16 @@ export function view(s: ViewState, cols: number, rows: number): string[] {
   const leftW = cols >= LIST_LABELS ? LEFT_WIDE : LEFT_NARROW;
   const paneW = Math.max(1, w - leftW - 3);
   const left = listLines(s, leftW, listH);
-  const right = listH ? s.pane(paneW, listH) : [];
+  // No device and nothing open: the right side says how to get one, in place of the line under the list.
+  const blank = !!s.idle && !s.duts.length && !s.gone.length && listH >= 5;
+  const right = !listH ? [] : blank ? emptyBlock(s, paneW, listH) : s.pane(paneW, listH);
   const out = [p.rule(G.rule.repeat(leftW + 1) + G.tee[0] + G.rule.repeat(Math.max(0, w - leftW - 2)))];
   for (let i = 0; i < listH; i++) out.push(pad(left[i] ?? '', leftW) + ' ' + p.rule(G.box[5]) + ' ' + truncate(right[i] ?? '', paneW));
   out.push(p.rule(G.rule.repeat(leftW + 1) + G.tee[1] + G.rule.repeat(Math.max(0, w - leftW - 2))));
   for (const c of cells) if (c.dut === sel || visible.has(c)) out.push(row(c));
   for (const c of gone) if (visible.has(c)) out.push(row(c));
   if (overflow) out.push(`  ${p.faint(`+ ${hidden} more device${hidden === 1 ? '' : 's'}${sp()}tab picks one`)}`);
-  if (!s.duts.length && !s.gone.length) out.push(waitingLine(s, w, gap));
+  if (!s.duts.length && !s.gone.length && !blank) out.push(waitingLine(s, w, gap));
   out.push(...bottom);
   return out.map((l) => truncate(l, w));
 }
@@ -370,6 +383,7 @@ function dutCells(t: DutView, s: ViewState, cols: number, selected: boolean, num
   const head = `${selected ? p.ink(G.sel) : ' '} ${(late ?? (v ? p.good : p.warn))(G.dot)} ${p.bold(t.id)}${cols >= WIDE && platform ? ' ' + p.muted(platform) : ''}`;
   const main = late ? late(`no sample for ${Math.floor(silent / 1000)} s`) : v ? mainCell(v, p, cols, numW) : p.faint('waiting for its first sample');
   const rest: string[] = [];
+  if (t.held) rest.push(p.accent(`${G.mark} ${printable(t.held)}`));
   if (t.reloadMs !== null) rest.push(p.warn(`reloading ${Math.ceil(t.reloadMs / 1000)} s`));
   let heap: string | null = null;
   if (v && v.heapMB !== null) {
@@ -438,20 +452,61 @@ function goneCells(g: ViewState['gone'][number], s: ViewState, cols: number): Ce
  * plainly wrong (the app doesn't answer, or nothing has opened the link in a minute).
  */
 function waitingLine(s: ViewState, w: number, gap: string): string {
+  const { tone, what, how } = waitingSays(s);
+  return truncate(`  ${tone(G.ring)} ${tone(what)}${gap}${how}`, w);
+}
+
+/** What is waited for and what to do about it, with the tone of its state. */
+function waitingSays(s: ViewState): { tone: (x: string) => string; what: string; how: string } {
   const { p } = s;
   const { link, lan, quiet, appless, appDown } = s.waiting;
-  const line = (tone: (x: string) => string, what: string, how: string) => truncate(`  ${tone(G.ring)} ${tone(what)}${gap}${how}`, w);
-  if (appDown) return line(p.bad, `nothing answers at ${appDown}`, p.faint('start your app: the device opens it once it answers'));
+  if (appDown) return { tone: p.bad, what: `nothing answers at ${appDown}`, how: p.faint('start your app: the device opens it once it answers') };
   // No app yet: naming one is the next thing to do; an app that bundles the agent needs none.
   if (appless) {
     const how = quiet
       ? p.faint(`type its port below${sp()}or in an app that bundles the agent: `) + p.ink(initLine(lan ?? `<this laptop>:${s.port}`))
       : p.faint('type its port below, or start your dev server');
-    return line(p.warn, 'waiting for an app', how);
+    return { tone: p.warn, what: 'waiting for an app', how };
   }
-  if (quiet) return line(p.bad, link ? `nothing has opened the link yet` : 'no app has connected yet', p.faint(`${link ? `${link}${sp()}` : ''}same network? port ${s.port}?`));
+  if (quiet) return { tone: p.bad, what: link ? `nothing has opened the link yet` : 'no app has connected yet', how: p.faint(`${link ? `${link}${sp()}` : ''}same network? port ${s.port}?`) };
   const how = link ? p.faint('open ') + p.accent(link) + p.faint(' on it') : p.faint('in your app: ') + p.ink(initLine(lan ?? `<this laptop>:${s.port}`));
-  return line(p.warn, 'waiting for a device', how);
+  return { tone: p.warn, what: 'waiting for a device', how };
+}
+
+/** A key and the word for what it does: the key on a plate where there is colour. */
+const chip = (s: ViewState, k: string, label: string) => (s.color === 'none' ? `${k} ${label}` : `${s.p.inverse(s.p.faint(` ${k} `))} ${s.p.muted(label)}`);
+
+/** The keys that act now, as many as fit, the last two (help and quit) kept. */
+function keyLine(keys: [string, string][], w: number, s: ViewState): string {
+  const gap = '   ';
+  const made = keys.map(([k, l]) => chip(s, k, l));
+  const tail = made.length > 2 ? made.slice(-2) : [];
+  const head = made.slice(0, made.length - tail.length);
+  let room = w - 2 - tail.reduce((n, c) => n + width(c) + gap.length, 0);
+  const shown: string[] = [];
+  for (const c of head) {
+    if (width(c) + (shown.length ? gap.length : 0) > room) break;
+    room -= width(c) + (shown.length ? gap.length : 0);
+    shown.push(c);
+  }
+  return '  ' + [...shown, ...tail].join(gap);
+}
+
+/** No device yet, in the middle of the right side: what is waited for, what to do, and the keys that work meanwhile. */
+function emptyBlock(s: ViewState, w: number, h: number): string[] {
+  const { p } = s;
+  const { tone, what, how } = waitingSays(s);
+  const keys: [string, string][] = [...(s.waiting.appless ? ([['5173', "your app's port"]] as [string, string][]) : []), ['?', 'keys'], ['h', 'history']];
+  // Too long for the side (the line to add to an app): what to do, then the line itself under it.
+  const hows = width(how) > w && how.includes(': ') ? [how.slice(0, how.indexOf(': ') + 1), how.slice(how.indexOf(': ') + 2)] : [how];
+  const lines = [tone(G.ring), '', p.bold(tone(what)), ...hows, '', keys.map(([k, l]) => chip(s, k, l)).join('   ')];
+  const top = Math.max(0, (h - lines.length) >> 1);
+  const out: string[] = Array.from({ length: top }, () => '');
+  for (const l of lines) {
+    const t = truncate(l, w);
+    out.push(' '.repeat(Math.max(0, (w - width(t)) >> 1)) + t);
+  }
+  return out.slice(0, h);
 }
 
 /** In place of the input when keys can't arrive: a notice for a moment, else why there is no input. */
@@ -654,6 +709,8 @@ export class Console {
   /** Each device's user agent, remembered from when it connected: the server forgets a device as it goes. */
   private agents = new Map<string, string>();
   private devtools = new Map<string, number>();
+  /** Devices a test run holds, each with who holds it. */
+  private holding = new Map<string, string>();
   /** The event line said last, which the same thing said again replaces. */
   private last: { kind: string; times: number; mark: number } | null = null;
   private busy = new Map<number, Busy>();
@@ -778,6 +835,13 @@ export class Console {
         this.devtools.set(e.id, e.open);
         if (!e.open) this.say('routine', `${id(e.id)} DevTools closed`, [`its console isn't recorded until DevTools opens again${this.o.screen.interactive ? `${sp()}d opens it` : ''}`]);
         // Opening is not said: the device's row shows DevTools, and how many, for as long as it is open.
+        return this.render();
+      }
+      case 'hold': {
+        const was = this.holding.get(e.id);
+        if (e.as) this.holding.set(e.id, e.as);
+        else this.holding.delete(e.id);
+        this.say(e.as ? 'ink' : 'routine', e.as ? `${id(e.id)} reserved by ${printable(e.as)}` : `${id(e.id)} released${was ? ` by ${printable(was)}` : ''}`, e.as ? ['calls from anyone else wait until it lets go; this console still acts'] : []);
         return this.render();
       }
       case 'governor':
@@ -1102,7 +1166,7 @@ export class Console {
       duts: duts.map((t) => {
         const tr = this.tracks.get(t.id);
         const last = t.session.lastFrameAt;
-        return { id: t.id, ua: t.ua, silentMs: last ? Math.max(0, now - last) : null, v: tr?.session === t.session ? tr.v : null, devtools: t.clients.size, inspector: !!t.cdp, governor: t.governor.level, errors: t.errors.total, reloadMs: due(t.id) };
+        return { id: t.id, ua: t.ua, silentMs: last ? Math.max(0, now - last) : null, v: tr?.session === t.session ? tr.v : null, devtools: t.clients.size, inspector: !!t.cdp, governor: t.governor.level, errors: t.errors.total, reloadMs: due(t.id), held: this.holding.get(t.id) ?? null };
       }),
       gone: [...this.gone.values()].map((g) => ({ id: g.id, ua: g.ua, ms: now - g.at, waiting: g.waiting, reloadMs: due(g.id) })),
       selected: target?.id ?? null,
@@ -1115,7 +1179,22 @@ export class Console {
       pane: (w, h) => this.pane(w, h, sug, target, at),
       // The input is always there while keys can arrive; remote mode has the keyboard instead.
       input: sug ? this.inputView(sug, target, at) : null,
+      keys: this.o.screen.interactive ? this.keysNow(remote, duts.length) : [],
+      idle: !this.input && this.overlay === 'none' && !remote && !this.results.get(at) && !running.has(at),
     };
+  }
+
+  /** The keys that act now, for the last line: the remote's while it has the keyboard, the input's while a line is typed, else the list's and the letters most used. */
+  private keysNow(remote: boolean, duts: number): [string, string][] {
+    if (remote) return [['arrows', 'move'], ['enter', 'ok'], [G.back, 'back'], ['0-9', 'digits'], ['c', 'capture'], ['m', 'map a key'], ['esc', 'leave']];
+    if (this.input) return [['enter', 'run'], ['tab', 'complete'], [ud(), 'pick'], ['esc', 'clear']];
+    const letters = ['capture', 'try', 'remote', 'devtools', 'survey', 'probe', 'errors', 'network', 'history'].map((n) => entry(n)).filter((e): e is Entry => !!e?.key);
+    return [[ud(), 'move'], ['enter', 'open'], ...letters.map((e): [string, string] => [e.key!, e.name]), ...(duts > 1 ? ([['tab', 'device']] as [string, string][]) : []), ['?', 'keys'], ['^C', 'quit']];
+  }
+
+  /** The terminal has the rows for every group to stay open, so nothing waits behind a closed one. */
+  private roomy(): boolean {
+    return this.o.screen.rows >= GROUPS.length + MENU.length + AROUND;
   }
 
   /**
@@ -1131,7 +1210,7 @@ export class Console {
       const all = entriesOf(g.id);
       const shown = matching ? all.filter((e) => matching.has(e.name)) : all;
       if (matching && !shown.length) continue;
-      const expanded = !!matching || g.id === open;
+      const expanded = !!matching || g.id === open || this.roomy();
       rows.push({ kind: 'group', group: g.id, name: g.id, running: !expanded && all.some((e) => running.has(e.name)), failed: false, status: expanded ? '' : this.groupStatus(g.id, target), open: expanded });
       ids.push(GROUP + g.id);
       if (!expanded) continue;
@@ -1155,7 +1234,8 @@ export class Console {
       if (key) return key;
     }
     if (g === 'inspect' && target?.clients.size) return p.ink('DevTools open');
-    return p.faint(entriesOf(g).filter((e) => e.key).map((e) => e.key).join(' '));
+    // What is inside, by name, so a closed group hides nothing: as many as the column fits.
+    return p.faint(truncate(entriesOf(g).map((e) => e.name).join(' '), LEFT_WIDE - 15));
   }
 
   /**

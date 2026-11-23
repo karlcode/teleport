@@ -156,8 +156,10 @@ function harness(duts: DutSource[] = [], o: Options = {}) {
     /** What was printed into scrollback, without colour. */
     printed: () => printed.map(strip),
     rawPrinted: () => printed,
-    live: () => raw.map(strip),
-    raw: () => raw,
+    live: () => body(raw).map(strip),
+    raw: () => body(raw),
+    /** The last line: the keys that act now. */
+    keys: () => (raw.length > body(raw).length ? strip(raw.at(-1)!) : ''),
     key,
     type: (text: string) => [...text].forEach((ch) => key(ch === ' ' ? 'space' : ch.toLowerCase(), { text: ch })),
     /** A letter alone, then Enter: its entry with its defaults. */
@@ -172,23 +174,26 @@ function harness(duts: DutSource[] = [], o: Options = {}) {
     sample: () => duts.forEach((x) => con.event({ type: 'sample', id: x.id })),
     connect: (x: DutSource) => con.event({ type: 'page', id: x.id, kind: 'new', href: x.href, ua: x.ua, ip: x.ip }),
     /** The device rows and the input, under the list. */
-    rows: () => below(raw).map(strip),
-    rowsRaw: () => below(raw),
+    rows: () => below(body(raw)).map(strip),
+    rowsRaw: () => below(body(raw)),
     /** The right side: the highlighted entry opened up, each line trimmed. */
     side: () => {
-      const r = sides(raw).map((l) => l.right);
+      const r = sides(body(raw)).map((l) => l.right);
       while (r.length && !r[r.length - 1]) r.pop();
       return r;
     },
     /** The list on the left, each line trimmed. */
-    list: () => sides(raw).map((l) => l.left),
+    list: () => sides(body(raw)).map((l) => l.left),
     /** The highlighted entry's name. */
-    at: () => sides(raw).map((l) => /^\s*[›>]\s+(?:\S\s+)?(\S+)/.exec(l.left)?.[1]).find(Boolean),
+    at: () => sides(body(raw)).map((l) => /^\s*[›>]\s+(?:\S\s+)?(\S+)/.exec(l.left)?.[1]).find(Boolean),
     /** The value highlighted on the right, while a command's word is typed. */
-    picked: () => sides(raw).map((l) => /^[›>] (\S+)/.exec(l.right)?.[1]).find(Boolean),
+    picked: () => sides(body(raw)).map((l) => /^[›>] (\S+)/.exec(l.right)?.[1]).find(Boolean),
   };
   return h;
 }
+
+/** The region without its last line when that is the keys, which the other helpers read past. */
+const body = (lines: string[]) => (/^ {2}(↑↓|up\/down|enter|arrows) \w+ {3}/.test(strip(lines.at(-1) ?? '')) ? lines.slice(0, -1) : lines);
 
 /** Where the list's bottom rule is: the lines under it are the device rows and the input. */
 const ruleAt = (lines: string[]) => lines.map(strip).findLastIndex((l) => /^[─-]+[┴+][─-]*$/.test(l));
@@ -209,6 +214,8 @@ const info = (h: ReturnType<typeof harness>) => h.rows().at(-1)!.replace(/ {3,}(
 /** The input at 100 columns with nothing typed and capture highlighted. */
 const BAR = '  > _  ↑↓ pick · enter captures 10 s · ? help';
 
+/** With no device, the middle of the right side: what is waited for, and what to do. */
+const waiting = (h: ReturnType<typeof harness>) => h.side().map((l) => l.trim()).filter(Boolean).slice(1, 3).join('   ');
 const settle = () => new Promise((r) => setTimeout(r, 0));
 
 /** Two devices as in the design's mockup (b): k3x9q2ab fine with DevTools open, p7m2d4cf struggling. */
@@ -242,8 +249,8 @@ describe('the live region', () => {
       '      advise',
       '      report',
       '    h history',
-      '  experiment   t',
-      '  video',
+      '  experiment   try trial eval…',
+      '  video        playback verify',
       // Beside a closed group, what needs a look in it: the last key pressed on the device, DevTools open.
       '  input        ↓',
       '  inspect      DevTools open',
@@ -256,6 +263,58 @@ describe('the live region', () => {
     expect(b).toMatch(/^ {2}● p7m2d4cf Linux {3}main .{16} 640 ms {3}heap 446\/512 MB {3}full in 31 min {3}key ↓ 180 ms$/);
     expect(foot).toMatch(/^ {2}> _ {2}↑↓ pick · enter captures 10 s · \? help +on ● k3x9q2ab$/);
     expect(h.rows()).toHaveLength(3);
+  });
+
+  it('keeps every group open on a tall terminal, and names the keys that act on the last line', () => {
+    const h = harness([dut('ab12')], { rows: 50 });
+    h.connect(h.duts[0]!);
+    h.sample();
+    // Nothing waits behind a closed group: every entry is on screen with its letter.
+    expect(h.list().filter(Boolean).map((l) => l.trim().replace(/^› /, ''))).toEqual(GROUPS.flatMap((g) => [g.id, ...MENU.filter((e) => e.group === g.id).map((e) => (e.key ? `${e.key} ${e.name}` : e.name))]));
+    expect(h.keys()).toBe('  ↑↓ move   enter open   c capture   t try   r remote   d devtools   s survey   ? keys   ^C quit');
+    // The arrows go on through every group's entries.
+    for (let i = 0; i < 7; i++) h.key('down');
+    expect(h.at()).toBe('experiment');
+    h.key('down');
+    expect(h.at()).toBe('try');
+    // Typing, the keys are the input's; in remote mode, the remote's.
+    h.type('cap');
+    expect(h.keys()).toBe('  enter run   tab complete   ↑↓ pick   esc clear');
+    h.key('escape');
+    h.hot('r');
+    expect(h.keys()).toBe('  arrows move   enter ok   ⌫ back   0-9 digits   c capture   m map a key   esc leave');
+    // A narrow terminal keeps the first keys, and help and quit; a short one gives the line to the list.
+    const narrow = harness([dut('ab12')], { cols: 60 });
+    expect(narrow.keys()).toBe('  ↑↓ move   enter open   c capture   ? keys   ^C quit');
+    expect(harness([dut('ab12')], { rows: 16 }).keys()).toBe('');
+    // On a plate where there is colour.
+    expect(harness([dut('ab12')], { color: 'truecolor' }).raw().length).toBeGreaterThan(0);
+  });
+
+  it('says how to get a device in the middle of the right side until one connects', () => {
+    const h = harness();
+    expect(h.side().filter(Boolean).map((l) => l.trim())).toEqual(['○', 'waiting for a device', 'open http://192.168.1.20:7070/ on it', '? keys   h history']);
+    // Centred in the side.
+    const line = sides(body(h.raw())).map((l) => l.right).find((l) => l.includes('waiting'))!;
+    expect(Math.abs(line.length - line.trimStart().length - (67 - 'waiting for a device'.length) / 2)).toBeLessThan(1.5);
+    // ? opens the keys there instead, and a device takes its place.
+    h.key('?', { text: '?' });
+    expect(h.side().join(' ')).not.toContain('waiting for a device');
+    expect(h.rows()[0]).toContain('waiting for a device');
+    const one = harness([dut('ab12')]);
+    expect(one.side().join(' ')).not.toContain('waiting');
+  });
+
+  it('shows who holds a device a test run reserved, and says when it lets go', () => {
+    const h = harness([dut('ab12')], { cols: 120 });
+    h.connect(h.duts[0]!);
+    h.sample();
+    h.con.event({ type: 'hold', id: 'ab12', as: 'nightly #1' });
+    expect(h.printed().slice(-2)).toEqual(['● ab12 reserved by nightly #1', '  ⎿ calls from anyone else wait until it lets go; this console still acts']);
+    expect(h.rows()[0]).toContain('◎ nightly #1');
+    h.con.event({ type: 'hold', id: 'ab12', as: null });
+    expect(h.printed().at(-1)).toBe('· ab12 released by nightly #1');
+    expect(h.rows()[0]).not.toContain('nightly');
   });
 
   it('keeps the wide row for 100 columns: below, 8 bars, no platform and 2-space gaps leave room for key and the alerts', () => {
@@ -352,15 +411,15 @@ describe('the live region', () => {
 
   it('waits for a device with its link, then after a quiet minute says what may be wrong', () => {
     const h = harness();
-    expect(h.rows()[0]).toBe('  ○ waiting for a device   open http://192.168.1.20:7070/ on it');
+    expect(waiting(h)).toBe('waiting for a device   open http://192.168.1.20:7070/ on it');
     expect(info(h)).toBe(BAR);
     h.advance(60_000);
     h.con.render();
-    expect(h.rows()[0]).toBe('  ○ nothing has opened the link yet   http://192.168.1.20:7070/ · same network? port 7070?');
+    expect(waiting(h)).toBe('nothing has opened the link yet   http://192.168.1.20:7070/ · same network? port 7070?');
     h.con.event({ type: 'request', id: null, ip: '192.168.1.42', method: 'GET', url: HREF, status: 200, ms: 3, document: true });
-    expect(h.rows()[0]).toContain('open http://192.168.1.20:7070/ on it');
+    expect(waiting(h)).toContain('open http://192.168.1.20:7070/ on it');
     const app = harness([], { link: null });
-    expect(app.rows()[0]).toBe("  ○ waiting for a device   in your app: teleport.init({ url: 'ws://192.168.1.20:7070/ws/target' })");
+    expect(app.side().map((l) => l.trim()).filter(Boolean).slice(1, 4)).toEqual(['waiting for a device', 'in your app:', "teleport.init({ url: 'ws://192.168.1.20:7070/ws/target' })"]);
     const piped = harness([], { interactive: false });
     expect(piped.live().at(-1)).toBe('  keys need a terminal on stdin · tlpt <command> works from another shell');
   });
@@ -506,7 +565,7 @@ describe('the events above the region', () => {
     // DevTools' wait counts down.
     expect(h.rows()[0]).toBe('  ○ ab12 Linux   gone 5 s   DevTools waits 55 s more');
     vi.advanceTimersByTime(55_000);
-    expect(h.rows()[0]).toBe('  ○ waiting for a device   open http://192.168.1.20:7070/ on it');
+    expect(waiting(h)).toBe('waiting for a device   open http://192.168.1.20:7070/ on it');
   });
 
   it('says a page that went at a heap near its limit may have been ended for it', () => {
@@ -1032,7 +1091,7 @@ describe('the keys', () => {
     // The device's last minute is shown live; the run that failed is listed above it, with why.
     expect(h.side()[2]).toBe('14:02 ✗ device --seconds 60 · 0 ms · the page went away');
     // trial's group is closed: the group carries the mark.
-    expect(h.list().find((l) => l.includes('experiment'))).toMatch(/[◌○◎◉] t$/);
+    expect(h.list().find((l) => l.includes('experiment'))).toMatch(/[◌○◎◉] try trial eval…$/);
     expect(h.list().find((l) => l.includes('device'))).toMatch(/✗ 14:02$/);
   });
 
@@ -1218,9 +1277,9 @@ describe('naming the app in the input', () => {
 
   it('says what to do while there is no app, and drops it once there is one', () => {
     const h = harness([], { appless: true, connect: async () => null });
-    expect(h.live().find((l) => l.includes('waiting for'))).toBe("  ○ waiting for an app   type its port below, or start your dev server");
+    expect(waiting(h)).toBe('waiting for an app   type its port below, or start your dev server');
     h.con.setApp('http://192.168.1.20:7070/', false);
-    expect(h.live().find((l) => l.includes('waiting for'))).toBe('  ○ waiting for a device   open http://192.168.1.20:7070/ on it');
+    expect(waiting(h)).toBe('waiting for a device   open http://192.168.1.20:7070/ on it');
   });
 });
 
@@ -1228,8 +1287,8 @@ describe('one list for everything', () => {
   it('lists every entry, each with its letter, and runs the same thing by key, by name or by moving to it', async () => {
     expect(MENU.filter((e) => e.key).map((e) => e.key + e.name[0])).toEqual(['cc', 'ss', 'pp', 'hh', 'tt', 'rr', 'dd', 'ee', 'nn', 'id', 'lr']);
     const h = harness([dut('ab12')], { rows: 40 });
-    // The first group is open; a closed one shows its letters.
-    expect(h.list().filter(Boolean).map((l) => l.trim())).toEqual(['measure', '› c capture', 's survey', 'p probe', 'styles', 'advise', 'report', 'h history', 'experiment   t', 'video', 'input        r', 'inspect      d e n i l']);
+    // The first group is open; a closed one names what is in it.
+    expect(h.list().filter(Boolean).map((l) => l.trim())).toEqual(['measure', '› c capture', 's survey', 'p probe', 'styles', 'advise', 'report', 'h history', 'experiment   try trial eval…', 'video        playback verify', 'input        remote keys re…', 'inspect      devtools error…']);
     run.mockResolvedValue({});
     h.hot('s');
     h.type('survey');
@@ -1294,7 +1353,7 @@ describe('the input, always open', () => {
     expect(h.at()).toBe('devtools');
     // Cleared, the highlight stays where typing found it, with its group open.
     h.ctrl('u');
-    expect(h.list().filter(Boolean).map((l) => l.trim().split(/\s+/).pop())).toEqual(['h', 't', 'video', 'r', 'inspect', 'devtools', 'errors', 'network', 'device', 'devices', 'reload']);
+    expect(h.list().filter(Boolean).map((l) => l.trim().split(/\s+/).pop())).toEqual(['survey…', 'eval…', 'verify', 're…', 'inspect', 'devtools', 'errors', 'network', 'device', 'devices', 'reload']);
   });
 
   it('lists what there is to try, each with what is flipped, and takes css rules as words', async () => {
