@@ -1,0 +1,55 @@
+{
+  "name": "tlpt",
+  "version": "0.1.0",
+  "description": "Chrome DevTools and measured A/B trials for web apps on embedded devices and other old Chromium with no debug port. The device runs a 9 KB ES5 agent; your laptop does the rest.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/karlcode/teleport.git",
+    "directory": "packages/tlpt"
+  },
+  "homepage": "https://github.com/karlcode/teleport#readme",
+  "type": "module",
+  "bin": {
+    "tlpt": "bin/tlpt.js",
+    "tp": "bin/tlpt.js",
+    "teleport": "bin/tlpt.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "bin",
+    "dist",
+    "assets",
+    "AGENTS.md",
+    "ARCHITECTURE.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "device",
+    "embedded",
+    "devtools",
+    "remote-debugging",
+    "performance",
+    "webview",
+    "old-chromium",
+    "chrome-devtools-protocol",
+    "benchmark",
+    "es5",
+    "mcp"
+  ],
+  "scripts": {
+    "build": "node build.mjs",
+    "prepublishOnly": "cd ../.. && npm run build && npm run check"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

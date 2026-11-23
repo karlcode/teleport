@@ -1,0 +1,9 @@
+# Git hooks, run by lefthook (https://lefthook.dev). Turn on once per clone: `lefthook install`.
+# Without lefthook installed nothing runs, and CI still checks the same things.
+pre-commit:
+  parallel: true
+  jobs:
+    - name: secrets
+      run: gitleaks git --pre-commit --staged --redact --no-banner
+    - name: check
+      run: just check

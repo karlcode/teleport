@@ -1,0 +1,12 @@
+{
+  "name": "@teleport/inspector",
+  "version": "0.0.0",
+  "private": true,
+  "license": "MIT",
+  "type": "commonjs",
+  "description": "Hand-written Chrome DevTools Protocol backend (ES5, no dependencies), loaded on the device only when DevTools opens.",
+  "main": "dist/inspector.js",
+  "scripts": {
+    "build": "node build.mjs"
+  }
+}

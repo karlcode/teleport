@@ -1,0 +1,132 @@
+# On a version tag (v0.1.0, ...): publishes tlpt and @tlpt/agent to npm with provenance, builds native
+# executables of tlpt for install.sh, runs each on its own platform, and attaches them to a GitHub release.
+#
+# One-time setup, by a maintainer, before the first tag:
+#   1. Create the npm organization "tlpt" (the free plan is enough) so @tlpt/agent can be published.
+#   2. Publish both packages once by hand, with 2FA:  npm publish -w packages/agent && npm publish -w packages/tlpt
+#   3. On npmjs.com, in each package's settings, add a Trusted Publisher: GitHub Actions,
+#      repository karlcode/teleport, workflow release.yml, and allow direct publishing (newer
+#      configurations allow only staged publishing unless told otherwise).
+# Provenance, and the release downloads install.sh uses, need the repository to be public.
+# After that, bump the version in both package.json files, commit, and push a tag v<version>.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+# Each job says what it may do. Only `publish` can ask npm for a token, and only `github-release`
+# can write to the repository.
+permissions:
+  contents: read
+
+jobs:
+  # Last but one: nothing reaches npm until every executable has run on its own platform, so a tag
+  # never leaves npm with a version install.sh has no download for.
+  publish:
+    needs: smoke
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # npm trusted publishing and provenance
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+      # Trusted publishing needs npm 11.5.1 or later; one exact version, so a release is repeatable.
+      - run: npm install -g npm@11.5.1
+      - name: The tag matches both packages' versions
+        run: |
+          want="${GITHUB_REF_NAME#v}"
+          for p in packages/tlpt packages/agent; do
+            have=$(node -p "require('./$p/package.json').version")
+            [ "$have" = "$want" ] || { echo "$p is $have, the tag says $want"; exit 1; }
+          done
+      - run: npm ci
+      - run: npm run build
+      - run: npm test
+      - run: npm run check
+      # A version already on npm (the first one, published by hand) is skipped, so the binaries still ship.
+      - name: Publish what isn't on npm yet
+        run: |
+          for w in packages/agent packages/tlpt; do
+            n=$(node -p "require('./$w/package.json').name"); v=$(node -p "require('./$w/package.json').version")
+            if npm view "$n@$v" version >/dev/null 2>&1; then echo "$n@$v is already published"; else npm publish --workspace "$w"; fi
+          done
+
+  # Native executables that need no Node, for install.sh. Every target is built on macOS: the bundle
+  # has no code cache, so one blob runs everywhere, and only macOS can re-sign the macOS builds.
+  binaries:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npm run build
+      - name: Build each target
+        run: |
+          for t in linux-x64 linux-arm64 darwin-x64 darwin-arm64 win-x64; do node packages/tlpt/sea.mjs --target "$t"; done
+      - name: Compress, and list checksums
+        working-directory: packages/tlpt/sea
+        run: |
+          mkdir ../release
+          for f in tlpt-linux-x64 tlpt-linux-arm64 tlpt-darwin-x64 tlpt-darwin-arm64; do gzip -9 -c "$f" > "../release/$f.gz"; done
+          zip -9 -j ../release/tlpt-win-x64.zip tlpt-win-x64.exe
+          cd ../release && shasum -a 256 -- tlpt-* > SHA256SUMS && cat SHA256SUMS
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release
+          path: packages/tlpt/release/
+
+  # Each executable runs on its own platform before anything is released.
+  smoke:
+    needs: binaries
+    strategy:
+      matrix:
+        include:
+          - { os: ubuntu-latest, target: linux-x64 }
+          - { os: ubuntu-24.04-arm, target: linux-arm64 }
+          - { os: macos-latest, target: darwin-arm64 }
+          - { os: windows-latest, target: win-x64 }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release
+      - name: Runs, and serves its agent
+        shell: bash
+        run: |
+          if [ "${{ matrix.target }}" = win-x64 ]; then unzip -q tlpt-win-x64.zip; exe=./tlpt-win-x64.exe; else gunzip -c "tlpt-${{ matrix.target }}.gz" > tlpt && chmod +x tlpt; exe=./tlpt; fi
+          "$exe" --version
+          "$exe" --help > /dev/null
+          mkdir app && echo '<!doctype html><html><head></head><body>device</body></html>' > app/index.html
+          "$exe" app --port 7399 --no-open > serve.log 2>&1 &
+          for _ in $(seq 1 50); do curl -sf http://127.0.0.1:7399/teleport.js -o agent.js && break; sleep 0.2; done
+          test -s agent.js
+          # The API is under the key tlpt made when it started; without it nothing answers.
+          key="$(cat "${XDG_CONFIG_HOME:-$HOME/.config}/teleport/key")"
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:7399/__teleport/api/live)" = 403
+          curl -sf "http://127.0.0.1:7399/__teleport/$key/api/live"
+          curl -sf -X POST "http://127.0.0.1:7399/__teleport/$key/api/stop"
+
+  github-release:
+    needs: [publish, smoke]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release
+          path: release
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" release/* --repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" --generate-notes

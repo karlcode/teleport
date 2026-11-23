@@ -1,0 +1,17 @@
+{
+  "$comment": "Type-checks the ES5 agent against ES5 + DOM libs only, so ES2015+ built-ins fail to type-check.",
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "target": "ES5",
+    "lib": ["ES5", "DOM"],
+    "module": "CommonJS",
+    "moduleResolution": "node10",
+    "strict": false,
+    "noImplicitAny": false,
+    "skipLibCheck": true,
+    "types": []
+  },
+  "include": ["src"]
+}

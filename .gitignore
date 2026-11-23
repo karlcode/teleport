@@ -1,0 +1,13 @@
+node_modules/
+dist/
+*.tsbuildinfo
+*.tgz
+.DS_Store
+.teleport/
+packages/tlpt/assets/
+packages/tlpt/README.md
+packages/tlpt/AGENTS.md
+packages/tlpt/ARCHITECTURE.md
+packages/tlpt/LICENSE
+packages/tlpt/sea/
+.vitest/

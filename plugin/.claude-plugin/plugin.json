@@ -1,0 +1,8 @@
+{
+  "name": "teleport",
+  "version": "0.1.0",
+  "description": "Debug and speed up web apps on devices with measurements from the device: what blocks the main thread, key → frame, captures, and A/B experiments with confidence intervals, through a running teleport.",
+  "author": { "name": "teleport contributors" },
+  "license": "MIT",
+  "keywords": ["device", "embedded", "performance", "debugging", "webview", "old-chromium"]
+}

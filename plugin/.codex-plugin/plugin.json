@@ -1,0 +1,15 @@
+{
+  "name": "teleport",
+  "version": "0.1.0",
+  "description": "Debug and speed up web apps on devices with measurements from the device: what blocks the main thread, key → frame, captures, and A/B experiments with confidence intervals, through a running teleport.",
+  "author": { "name": "teleport contributors" },
+  "license": "MIT",
+  "keywords": ["device", "embedded", "performance", "debugging", "webview", "old-chromium"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "teleport",
+    "shortDescription": "Measurements from the device for your agent",
+    "category": "Developer Tools",
+    "defaultPrompt": ["What is making the app slow on the device?", "Do shadows cost anything on this device? Run an experiment."]
+  }
+}

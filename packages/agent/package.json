@@ -1,0 +1,43 @@
+{
+  "name": "@tlpt/agent",
+  "version": "0.1.0",
+  "description": "teleport's on-device agent on its own: ES5, no dependencies, about 9 KB gzipped, invisible on the page. Ships asleep; your app starts it.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/karlcode/teleport.git",
+    "directory": "packages/agent"
+  },
+  "homepage": "https://github.com/karlcode/teleport#readme",
+  "type": "commonjs",
+  "main": "./dist/agent.cjs",
+  "types": "./index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./dist/agent.cjs"
+    },
+    "./script": "./dist/teleport.min.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist/agent.cjs",
+    "dist/teleport.min.js",
+    "index.d.ts",
+    "README.md"
+  ],
+  "keywords": [
+    "embedded",
+    "webview",
+    "remote-debugging",
+    "devtools",
+    "performance"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "node build.mjs",
+    "prepublishOnly": "cd ../.. && npm run build && npm run check"
+  }
+}

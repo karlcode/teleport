@@ -1,0 +1,311 @@
+{
+  "$comment": "Single source of truth for the binary frame format. Run `npm run gen:protocol` after editing.",
+  "magic": 21590,
+  "version": 3,
+  "littleEndian": true,
+  "header": [
+    {
+      "name": "magic",
+      "type": "u16"
+    },
+    {
+      "name": "version",
+      "type": "u8"
+    },
+    {
+      "name": "streamCount",
+      "type": "u8"
+    },
+    {
+      "name": "seq",
+      "type": "u32"
+    },
+    {
+      "name": "baseTime",
+      "type": "f64"
+    }
+  ],
+  "streamHeader": [
+    {
+      "name": "streamId",
+      "type": "u8"
+    },
+    {
+      "name": "reserved",
+      "type": "u8"
+    },
+    {
+      "name": "count",
+      "type": "u16"
+    },
+    {
+      "name": "dropped",
+      "type": "u32"
+    },
+    {
+      "name": "first",
+      "type": "u32",
+      "$comment": "Position of this frame's first record in its stream: how many the page recorded before it. A resend after a reconnect repeats positions, so the server takes each record once"
+    }
+  ],
+  "recordTime": {
+    "name": "t",
+    "type": "f32",
+    "$comment": "ms offset from header.baseTime"
+  },
+  "streams": [
+    {
+      "id": 1,
+      "name": "overhead",
+      "$comment": "Agent self-time measured with performance.now() (Date.now() fallback) per tick window",
+      "fields": [
+        {
+          "name": "workMs",
+          "type": "f32"
+        },
+        {
+          "name": "windowMs",
+          "type": "f32"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "lag",
+      "$comment": "How late the agent's 1 Hz timer fired. A cheap event-loop blockage probe that works on every engine",
+      "fields": [
+        {
+          "name": "lagMs",
+          "type": "f32"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "longtask",
+      "$comment": "PerformanceObserver longtask entries; t is the task's startTime",
+      "fields": [
+        {
+          "name": "durMs",
+          "type": "f32"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "frame",
+      "$comment": "requestAnimationFrame timestamps, recorded only during a capture",
+      "fields": []
+    },
+    {
+      "id": 5,
+      "name": "input",
+      "$comment": "keydown, and how long until the next animation frame started (-1 if no frame was seen)",
+      "fields": [
+        {
+          "name": "keyCode",
+          "type": "u16"
+        },
+        {
+          "name": "toFrameMs",
+          "type": "f32"
+        },
+        {
+          "name": "delayMs",
+          "type": "f32",
+          "$comment": "key event to handler, ms; -1 when the engine stamped no usable time"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "name": "resource",
+      "$comment": "Resource Timing entries; t is startTime. name indexes the agent's string table (65535 = table full), kind indexes resourceKinds. ttfbMs is -1 when the engine hides it",
+      "fields": [
+        {
+          "name": "durMs",
+          "type": "f32"
+        },
+        {
+          "name": "ttfbMs",
+          "type": "f32"
+        },
+        {
+          "name": "bytes",
+          "type": "u32"
+        },
+        {
+          "name": "name",
+          "type": "u16"
+        },
+        {
+          "name": "kind",
+          "type": "u8"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "name": "video",
+      "$comment": "Per <video> element, sampled at 1 Hz: cumulative decoded and dropped frame counts and currentTime",
+      "fields": [
+        {
+          "name": "el",
+          "type": "u8"
+        },
+        {
+          "name": "decoded",
+          "type": "u32"
+        },
+        {
+          "name": "dropped",
+          "type": "u32"
+        },
+        {
+          "name": "mediaTime",
+          "type": "f32"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "name": "heap",
+      "$comment": "performance.memory at 1 Hz, in bytes. Chrome quantizes these unless precise memory info is enabled",
+      "fields": [
+        {
+          "name": "used",
+          "type": "u32"
+        },
+        {
+          "name": "total",
+          "type": "u32"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "name": "link",
+      "$comment": "At the 1 Hz tick: bytes queued on the agent's and the inspector's sockets, the inspector's main-thread time in its last second, its governor level, and the JS heap limit (0 when unknown). Sent on the agent's socket so a stuck inspector socket is still visible",
+      "fields": [
+        {
+          "name": "agentQueued",
+          "type": "u32"
+        },
+        {
+          "name": "inspectorQueued",
+          "type": "u32"
+        },
+        {
+          "name": "inspectorMs",
+          "type": "f32"
+        },
+        {
+          "name": "level",
+          "type": "u8"
+        },
+        {
+          "name": "heapLimit",
+          "type": "u32"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "name": "dom",
+      "$comment": "Element count, every 5 s, from a live getElementsByTagName('*') collection",
+      "fields": [
+        {
+          "name": "nodes",
+          "type": "u32"
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "name": "keytarget",
+      "$comment": "The focused element when a key was pressed; t matches the input record's t. target indexes the string table (65535 = none or table full)",
+      "fields": [
+        {
+          "name": "target",
+          "type": "u16"
+        },
+        {
+          "name": "landing",
+          "type": "u16",
+          "$comment": "where focus came to rest after the key, read at its frame; indexes the string table"
+        },
+        {
+          "name": "x",
+          "type": "f32"
+        },
+        {
+          "name": "y",
+          "type": "f32"
+        },
+        {
+          "name": "w",
+          "type": "u16"
+        },
+        {
+          "name": "h",
+          "type": "u16"
+        },
+        {
+          "name": "moved",
+          "type": "u8",
+          "$comment": "1 when focus left the element the key was pressed on, 0 when it stayed, 255 unknown"
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "name": "keyphase",
+      "$comment": "One sampled key press broken into phases, in ms; t matches the input record's t, -1 when a phase couldn't be measured. inputDelay: event.timeStamp to the agent's capture listener. handlers: to the window bubble listener (or the next task if propagation stopped). waitFrame: to the first animation-frame callback. raf: to the agent's last callback, so the app's rAF work. style and layout: forcing a computed style read, then offsetHeight. paint: from there to the next task, so paint, compositing update and commit",
+      "fields": [
+        {
+          "name": "inputDelay",
+          "type": "f32"
+        },
+        {
+          "name": "handlers",
+          "type": "f32"
+        },
+        {
+          "name": "waitFrame",
+          "type": "f32"
+        },
+        {
+          "name": "raf",
+          "type": "f32"
+        },
+        {
+          "name": "style",
+          "type": "f32"
+        },
+        {
+          "name": "layout",
+          "type": "f32"
+        },
+        {
+          "name": "paint",
+          "type": "f32"
+        }
+      ]
+    }
+  ],
+  "resourceKinds": [
+    "other",
+    "navigation",
+    "script",
+    "link",
+    "css",
+    "img",
+    "xmlhttprequest",
+    "fetch",
+    "video",
+    "audio",
+    "iframe",
+    "beacon",
+    "font"
+  ]
+}

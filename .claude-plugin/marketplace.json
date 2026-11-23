@@ -1,0 +1,13 @@
+{
+  "name": "teleport",
+  "owner": { "name": "teleport contributors" },
+  "metadata": { "description": "teleport: debug web apps on devices from your laptop." },
+  "plugins": [
+    {
+      "name": "teleport",
+      "source": "./plugin",
+      "description": "Measurements from the device for your agent: what is slow, why, and A/B experiments that prove it.",
+      "category": "development"
+    }
+  ]
+}

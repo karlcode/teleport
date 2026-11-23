@@ -1,0 +1,12 @@
+{
+  "name": "teleport",
+  "interface": { "displayName": "teleport" },
+  "plugins": [
+    {
+      "name": "teleport",
+      "source": { "source": "local", "path": "./plugin" },
+      "policy": { "installation": "AVAILABLE", "authentication": "ON_INSTALL" },
+      "category": "Developer Tools"
+    }
+  ]
+}

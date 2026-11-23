@@ -1,0 +1,17 @@
+{
+  "name": "@teleport/server",
+  "version": "0.0.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "teleport": "bin/teleport.js"
+  },
+  "main": "dist/server.js",
+  "types": "dist/server.d.ts",
+  "dependencies": {
+    "@teleport/inspector": "0.0.0",
+    "@teleport/protocol": "0.0.0",
+    "@teleport/stats": "0.0.0"
+  }
+}

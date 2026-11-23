@@ -1,0 +1,38 @@
+{
+  "name": "teleport-monorepo",
+  "private": true,
+  "description": "teleport: Chrome DevTools and measured trials for web apps on devices and other Chromium you can't attach to. Development monorepo; the published package is packages/tlpt.",
+  "license": "MIT",
+  "type": "module",
+  "workspaces": [
+    "packages/protocol",
+    "packages/stats",
+    "packages/agent",
+    "packages/inspector",
+    "packages/server",
+    "packages/tlpt"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "node scripts/gen-protocol.mjs && tsc -b packages/protocol packages/stats packages/server && npm run build -w @tlpt/agent -w @teleport/inspector && npm run build -w tlpt",
+    "dev": "npm run build && node packages/server/bin/teleport.js examples/hello-device",
+    "test": "vitest run",
+    "check": "tsc -b packages/protocol packages/stats packages/server && tsc -p packages/agent && eslint packages/agent/src packages/inspector/src && node scripts/check-agent.mjs && node packages/agent/test-es5/run.js",
+    "link": "npm run build && npm install -g ./packages/tlpt",
+    "pack": "npm run build && npm run check && npm pack -w tlpt"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "@types/ws": "^8.18.2",
+    "es-check": "^9.8.1",
+    "esbuild": "^0.28.2",
+    "eslint": "^10.13.0",
+    "eslint-plugin-es-x": "^10.1.0",
+    "postject": "^1.0.0-alpha.6",
+    "typescript": "^5.9.3",
+    "vitest": "^5.0.5",
+    "ws": "^8.18.0"
+  }
+}
