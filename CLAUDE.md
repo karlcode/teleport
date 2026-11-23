@@ -25,15 +25,21 @@ Chrome DevTools for web apps on old embedded Chromium. Three documents, each wit
 - Anything a device says is passed through `printable` (`text.ts`) before it is printed.
 - Terminal output is checked in a pseudo-terminal as well as by tests. Keep it to what the console
   has now: a two-line header with a card under it for each device, a window on the event log, two
-  columns (five groups of commands on the left, one open at a time; what is highlighted opened up
-  on the right: what it does, its beam while it runs, its last answer, or the remote), the device
-  rows and the input line, which is always open: a person stays in this terminal, so everything is
+  columns (five groups of commands on the left, every one open when the terminal has the rows, else
+  one at a time with the closed ones naming what is in them; what is highlighted opened up on the
+  right: what it does, its beam while it runs, its last answer, the remote, or with no device yet
+  how to get one, centred), the device rows, the input line, which is always open, and under it
+  the keys that act now: a person stays in this terminal, so everything is
   reachable by typing there or moving to it. There is one list of commands (`menu.ts`, in five
   groups): a new one goes there, so the input, `tlpt <name>` and `--help` all have it, and a letter
   is only a shorter way to type an entry. A thing to flip and measure goes in `toggles.ts`. An event
   line that repeats is counted on the line before it (`say` in `console.ts`), never printed again.
   Nothing on screen counts up after it is done: a time something ran is a clock time. Green, amber
   and red are states (a device's dot, the waiting line), never numbers within their limits.
+- What a test runner needs (holding a device, the browser's side of the DevTools protocol, the
+  frame a held device shows) is in `drive.ts`, and its client and Playwright fixtures in
+  `client.ts`, published as `tlpt/drive`. It runs on the laptop: nothing for it is added to the
+  agent or the inspector.
 - Every experiment the API runs is kept in the journal (`journal.ts`); a new endpoint that runs
   one on a device calls `kept` in `server.ts`.
 - A number in a comment or a document says where it was measured. Don't state one you didn't

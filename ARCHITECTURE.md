@@ -164,6 +164,7 @@ which is how a link resumes (`positions.ts`).
 | Sockets | `ws.ts` (the WebSocket server), `link.ts` (a channel that outlives its sockets) |
 | Devices | `server.ts` (routes, devices, the API), `session.ts` (one page's timeline), `analyze.ts`, `vitals.ts`, `live.ts`, `ua.ts` |
 | DevTools | `devtools.ts` (the bridge), `mirror.ts` (the copy of the tree), `expand.ts` (short forms back to the protocol), `cdp.ts`, `perfpanel.ts` |
+| Test runs | `drive.ts` (holds, the frame a held device shows, the browser's side of the protocol), `client.ts` (what `tlpt/drive` exports: a held device, and Playwright fixtures) |
 | Asking | `q.ts` (the commands), `mcp.ts`, `probes.ts`, `remote.ts` (sending keys), `hear.ts` (reading them, and the keys each platform was heard to send), `replay.ts` (a journey's presses kept as a tape, and pressed again under a capture), `shim.ts` (the built-ins an old engine lacks, filled ahead of the app), `styles.ts`, `trial.ts`, `profile.ts`, `guide.ts`, `verify.ts` and `aliens.ts` (the clips, and the crew drawn in them) |
 | Keeping | `journal.ts` (every experiment, one JSON line each, beside the surveys), `survey.ts`, `report.ts`, `advise.ts` |
 | Access | `key.ts` |
@@ -286,8 +287,12 @@ The console is a pure function from its state to lines, so it is tested without 
 `term.ts` redraws one region in place, under the pinned header, which the console gives a card for
 each device (its state, platform, screen, cores and heap limit; the screen and cores read once per
 kind of device with one small script). The region is two columns over the device rows: the five
-groups of commands (`menu.ts`) on the left, one open at a time, and what is highlighted opened up on
-the right. Nothing beside an entry counts up: the time it last ran is a clock time, since a count of
+groups of commands (`menu.ts`) on the left, and what is highlighted opened up on the right. Every
+group stays open when the terminal has the rows for all of them (the entries, the groups and 14
+more); on a shorter one a single group is open and each closed one names its entries. The last
+line names the keys that act now (the list's, the input's while a line is typed, the remote's in
+remote mode), dropped from the middle as the width shrinks and left out under 20 rows. With no
+device, the right side says how to get one, centred. Nothing beside an entry counts up: the time it last ran is a clock time, since a count of
 seconds since read as a timer still running. A reload asked for counts down the 10 s it has to come
 back, on the device's row and its card, and is said in the log when it comes back or doesn't. An answer is
 kept as data and drawn at the right side's width when it is shown, so a resize redraws it rather
@@ -298,6 +303,38 @@ the laptop answers without the device; and for the remote, the presses the devic
 hold. While something runs, the region redraws every 120 ms for its beam and its portal, and only then. Everything a device says passes through `printable`
 before it is styled: no escape or control character of the page's reaches the terminal, so a
 page can't retitle the window, clear the screen or write the clipboard of whoever is watching.
+
+### Test runs (`drive.ts`, `client.ts`)
+
+A test runner needs three things the rest did not have, and all three are on the laptop: the agent
+and the inspector are unchanged, so a device pays nothing for them.
+
+- **Holds.** `POST reserve` gives a run a device and a token. While the hold lasts, a `POST` that
+  acts on the device without the token is answered 423, and a browser-level protocol socket without
+  it doesn't list the device. Reading (`errors`, `network`, `device`) is never refused, and neither
+  is the console: the person at the keyboard decides. A hold ends at `release`, when its device is
+  gone for good, or when its holder makes no call for its time (120 s, 600 at most), so a runner
+  that died frees its device. `clear` forgets the page's errors and moves the start of its request
+  log to now, which is what "between two tests" means here.
+- **The frame.** A held device shows a 3 px border in teleport's accent and the holder's name in a
+  corner: one fixed element that takes no input, put there and taken away by the agent's `eval`.
+  It is shown again after a reload. Its cost on a device has not been measured; `frame=0` leaves it off.
+- **The browser's side of the protocol.** A device's own socket (`ws/<id>`) speaks the page's side.
+  Playwright's `connectOverCDP` and Puppeteer's `connect` begin with a browser: `json/version`
+  names the socket (`cdp`), and on it `Target.*` lists each device as a page and attaches to it.
+  A session is a DevTools client of the device with no socket of its own, so everything DevTools
+  can do, a session can. Four things are answered here instead of on the device. `Input.*` runs
+  the scripts the remote's keys run (`remote.ts`), through the agent. A request's id is replaced
+  by one no other client uses, since a device's reply goes to every client of it. The inspector's
+  one frame, `main`, is renamed to the target's id, which is where a client looks for a page's
+  main frame. And an isolated world asked for by name is announced as a context and is the page's
+  own world: an old engine has the one.
+
+Checked with Playwright 1.65 against headless Chrome 158 as the device, on this laptop: the
+handshake, `page.title()`, `evaluate`, `locator`, `keyboard.press`, a raw `CDPSession`, and four
+tests on two workers, each worker on its own device (2.9 s). Not checked on Chromium 38: Playwright
+evaluates through a script of its own that an ES5 engine can't parse, so there `device.keys`,
+`device.eval` and a raw session are the way, and `page.evaluate` is not.
 
 ### Access (`key.ts`)
 

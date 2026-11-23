@@ -61,7 +61,7 @@ describe('the MCP server', () => {
     expect(Object.keys(trial.inputSchema.properties)).toEqual(['file', 'spec', 'id']);
     expect(Object.keys(list.tools.find((t) => t.name === 'guide')!.inputSchema.properties)).toEqual(['words']);
     expect(trial.inputSchema.properties.spec!.type).toBe('object');
-    expect(list.tools.filter((t) => !t.annotations.readOnlyHint).map((t) => t.name)).toEqual(['trial', 'keys', 'hear', 'keymap', 'eval', 'verify', 'try', 'replay', 'shim']);
+    expect(list.tools.filter((t) => !t.annotations.readOnlyHint).map((t) => t.name)).toEqual(['trial', 'keys', 'hear', 'keymap', 'eval', 'verify', 'try', 'replay', 'shim', 'reserve', 'release', 'clear']);
     expect(list.tools.find((t) => t.name === 'keys')!.inputSchema.required).toEqual(['sequence']);
   });
 

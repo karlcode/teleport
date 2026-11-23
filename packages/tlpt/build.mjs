@@ -10,7 +10,7 @@ const repo = fileURLToPath(new URL('../../', import.meta.url));
 for (const dir of ['dist', 'assets']) rmSync(here + dir, { recursive: true, force: true });
 
 await build({
-  entryPoints: { cli: repo + 'packages/server/src/cli.ts', index: repo + 'packages/server/src/index.ts' },
+  entryPoints: { cli: repo + 'packages/server/src/cli.ts', index: repo + 'packages/server/src/index.ts', drive: repo + 'packages/server/src/client.ts' },
   outdir: here + 'dist',
   bundle: true,
   splitting: true,
@@ -31,6 +31,7 @@ copy(repo + 'packages/agent/dist/teleport.js', here + 'assets/teleport.js');
 copy(repo + 'packages/inspector/dist/inspector.js', here + 'assets/inspector.js');
 copy(repo + 'packages/server/client/devtools-link.js', here + 'assets/devtools-link.js');
 copy(here + 'src/index.d.ts', here + 'dist/index.d.ts');
+copy(here + 'src/drive.d.ts', here + 'dist/drive.d.ts');
 copy(repo + 'README.md', here + 'README.md');
 // The full reference, so an agent in a project that installs tlpt finds it in node_modules/tlpt.
 copy(repo + 'AGENTS.md', here + 'AGENTS.md');

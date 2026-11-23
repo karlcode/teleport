@@ -95,6 +95,10 @@ const Q_80 = `
                                      flip one thing, measured
     replay [words...] [--seconds n]  a journey, pressed again
     shim [state]                     fill in what it lacks
+    reserve [--as as] [--seconds n] [--no-frame]
+                                     hold a device for a run
+    release                          let a held device go
+    clear                            forget errors and requests
 
   Every command
     --id <device>                    which device, by its id in status; else

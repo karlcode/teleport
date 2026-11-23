@@ -378,6 +378,38 @@ export const COMMANDS: Command[] = [
       return { html: join(dir, 'report.html'), markdown: join(dir, 'README.md'), must: rep.advice.filter((x) => x.level === 'must').length, should: rep.advice.filter((x) => x.level === 'should').length, could: rep.advice.filter((x) => x.level === 'could').length, advice: rep.advice.map((x) => `${x.level}: ${x.title}`) };
     },
   },
+  {
+    name: 'reserve',
+    brief: 'hold a device for a run',
+    agents: true,
+    acts: true,
+    cost: 'A thin frame on its screen while it is held; its errors and requests so far are forgotten',
+    help: "Reserves a device for a test run: the one --id names, else the first nobody holds. Answers its id and a token. While it is held, calls that act on it without the token are refused (423), so two runs never drive one screen; set TLPT_HOLD to the token and every tlpt q call shows it. The hold ends at `release`, or when its holder makes no call for its time. `cdp` in the answer is a DevTools protocol socket for Playwright's connectOverCDP that shows this device alone.",
+    params: [
+      { name: 'as', type: 'string', help: "Who holds it, as the device's frame and the console say: a suite's name." },
+      { name: 'seconds', type: 'number', help: 'How long the hold outlives the last call made with it, 120 by default, 600 at most.' },
+      { name: 'noFrame', type: 'boolean', help: "Leaves the frame off the device's screen, for a run that measures frames." },
+    ],
+    call: (a) => ({ path: 'reserve', post: true, q: { as: str(a.as), ms: seconds(a.seconds, 600), frame: a.noFrame ? 0 : undefined } }),
+  },
+  {
+    name: 'release',
+    brief: 'let a held device go',
+    agents: true,
+    acts: true,
+    help: 'Ends the hold TLPT_HOLD names, and takes the frame off the device.',
+    params: [],
+    call: () => ({ path: 'release', post: true }),
+  },
+  {
+    name: 'clear',
+    brief: 'forget errors and requests',
+    agents: true,
+    acts: true,
+    help: "Forgets what the device's page threw and the requests it made so far, so `errors` and `network` answer for what comes next: between two suites, or two tests.",
+    params: [],
+    call: () => ({ path: 'clear', post: true }),
+  },
 ];
 
 /** The commands that only read or measure. */
@@ -468,6 +500,7 @@ ${page("Asks a device connected to the tlpt running on this machine. One command
 ${COMMANDS.map((c) => `  ${usageOf(c)}\n${page(c.help, '      ')}`).join('\n')}
 
   --id <device>         which device, by the id status shows; the newest one otherwise
+  --all                 every connected device at once, each answer under its id
   --port 7070       where tlpt listens, if not 7070 (or set TELEPORT_PORT)
   --json            JSON even in a terminal; piped output is always JSON
   --<name> v        a command's own flags, as listed; booleans take no value
@@ -486,6 +519,7 @@ export function parseQ(argv: string[]): { name: string; pos: string[]; flags: Re
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]!;
     if (!a.startsWith('--')) pos.push(a);
+    else if (a === '--all') flags.all = '';
     else if (i + 1 < argv.length && !argv[i + 1]!.startsWith('--')) flags[a.slice(2)] = argv[++i]!;
     else flags[a.slice(2)] = '';
   }
@@ -567,7 +601,8 @@ export async function request(port: number, path: string, opts: { q?: Query; pos
   const res = await fetch(url, {
     method: opts.post || opts.body !== undefined ? 'POST' : 'GET',
     // A call that is part of a bigger experiment (a survey, a replay) is kept in the journal as that one.
-    headers: { 'x-teleport': opts.by ?? 'q', ...(opts.part ? { 'x-teleport-part': '1' } : null), ...(opts.body !== undefined ? { 'content-type': 'application/json' } : null) },
+    // A run that reserved a device shows its hold on every call (TLPT_HOLD), which also picks that device.
+    headers: { 'x-teleport': opts.by ?? 'q', ...(process.env.TLPT_HOLD ? { 'x-teleport-hold': process.env.TLPT_HOLD } : null), ...(opts.part ? { 'x-teleport-part': '1' } : null), ...(opts.body !== undefined ? { 'content-type': 'application/json' } : null) },
     body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
     signal: opts.signal ? anySignal(opts.signal, AbortSignal.timeout(300_000)) : AbortSignal.timeout(300_000),
   }).catch((e: Error) => {
@@ -608,5 +643,14 @@ export async function runQ(argv: string[], port: number, cwd = process.cwd()): P
   const { name, pos, flags } = parseQ(argv);
   const c = COMMANDS.find((x) => x.name === name);
   if (!c) throw new Error(name ? `no command ${name}${((n) => (n ? `; did you mean ${n}?` : ''))(nearest(name, COMMANDS.map((x) => x.name)))}\n\n${Q_USAGE}` : Q_USAGE);
+  // --all: the same thing on every connected device at once, each answer under its device's id.
+  if ('all' in flags && !c.params.some((p) => p.name === 'all')) {
+    delete flags.all;
+    const a = argsFromWords(c, pos, flags);
+    const ids = ((await request(port, 'live')) as LiveDevice[]).map((d) => d.device.id);
+    if (!ids.length) throw new Error('no device connected');
+    const out = await Promise.all(ids.map((id) => runData(c, a, port, cwd, id).catch((e: Error) => ({ error: e.message }))));
+    return JSON.stringify(Object.fromEntries(ids.map((id, i) => [id, out[i]])), null, 1);
+  }
   return runCommand(c, argsFromWords(c, pos, flags), port, cwd, flags.id || undefined);
 }

@@ -82,6 +82,9 @@ From a checkout instead: `npm install && npm run link`. To hand it to someone wi
   see what breaks next without a rebuild.
 - **Video**: `try hevc`, `verify` and `playback`: which codecs really play, and what is playing.
 - **Drive it**: `r`, or `tlpt remote` in another shell, turns your keyboard into the remote.
+- **Run your tests on it**: `import { fixtures } from 'tlpt/drive'` gives Playwright a device for
+  each worker, so a suite runs on several devices at once; `connectOverCDP` works too. A device a
+  run holds shows a thin frame, and nobody else's keys reach it.
 - **Script it, or hand it to an AI agent**: `tlpt status`, `tlpt probe media`, and `tlpt mcp`.
 
 ## If something's off

@@ -75,7 +75,7 @@ describe('q help', () => {
     expect([names('read'), names('measure'), names('change')]).toEqual([
       ['status', 'devices', 'device', 'errors', 'network', 'guide', 'history', 'report'],
       ['capture', 'probe', 'styles', 'playback', 'survey', 'advise'],
-      ['trial', 'keys', 'hear', 'keymap', 'eval', 'verify', 'try', 'replay', 'shim'],
+      ['trial', 'keys', 'hear', 'keymap', 'eval', 'verify', 'try', 'replay', 'shim', 'reserve', 'release', 'clear'],
     ]);
   });
 
@@ -104,6 +104,9 @@ describe('q help', () => {
       'history [--limit n] [--all]',
       'advise [from]',
       'report [from] [--md] [--list]',
+      'reserve [--as as] [--seconds n] [--no-frame]',
+      'release',
+      'clear',
     ]);
   });
 

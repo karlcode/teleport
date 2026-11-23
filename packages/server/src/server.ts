@@ -11,6 +11,7 @@ import { AGENT_TAG, NO_APP_PAGE, WAITING, appTarget, entryPath, proxyApp, proxyU
 import { report, type NetRecord, type Report } from './analyze.js';
 import { networkEvents } from './cdp.js';
 import { DevtoolsBridge } from './devtools.js';
+import { cdpBrowser, frameScript, holderName, Holds, type CdpHost, type CdpTarget, type Hold } from './drive.js';
 import { Expander } from './expand.js';
 import { ensureKey } from './key.js';
 import { inlineMap, mapUrlOf, originalOf, type Original } from './sourcemap.js';
@@ -29,6 +30,7 @@ import { Session } from './session.js';
 import { droppedStyles } from './styles.js';
 import { Link, type LinkLimits } from './link.js';
 import { parseSpec, runTrial, TRIAL_BASE, TrialFiles, type TrialControl, type TrialReport, type TrialSpec } from './trial.js';
+import { VERSION } from './version.js';
 import { accept, type Peer } from './ws.js';
 
 // Installed from npm, the built agent and inspector sit in `assets/` beside this code (see
@@ -454,11 +456,78 @@ export function startDevServer(opts: DevServerOptions): Promise<DevServer> {
   const awaiting = new Set<ServerResponse>();
   const trialFiles = new TrialFiles();
   const trialing = new Set<string>();
+  /** Devices a test run has reserved (drive.ts). A hold that ends takes its frame off the device. */
+  const holds = new Holds((h) => {
+    const d = devices.get(h.id);
+    if (d && h.frame) evaluate(d, frameScript(null), 'frame').catch(() => {});
+    emit({ type: 'hold', id: h.id, as: null });
+  });
+  const showFrame = (d: Device, h: Hold) => void (h.frame && evaluate(d, frameScript(h.as), 'frame').catch(() => {}));
+  /** Browser-level DevTools protocol sockets, told of each device as it connects. */
+  const watchers = new Set<(t: CdpTarget, here: boolean) => void>();
+  const cdpTarget = (d: Device): CdpTarget => ({ id: d.id, url: d.href, title: describeUa(d.ua) || d.id });
+  /** What a browser-level socket may reach: with a hold's token its device alone, else every device nobody holds. */
+  const cdpHost = (token: string | null): CdpHost => {
+    const mine = (d: Device) => (token ? holds.of(d.id)?.token === token : !holds.of(d.id));
+    return {
+      targets: () => [...devices.values()].filter(mine).map(cdpTarget),
+      open(id, out) {
+        const d = devices.get(id) ?? detached.get(id)?.d;
+        if (!d) return 'no such device';
+        if (!mine(d)) return `reserved by ${holds.of(d.id)?.as ?? 'another run'}`;
+        // A DevTools client with no socket of its own: what it is sent comes out on the browser's.
+        let heard: ((data: Buffer, isBinary: boolean) => void) | null = null;
+        const ended: (() => void)[] = [];
+        const wire = { open: true, bytesIn: 0, send: (data: string | Buffer | Uint8Array) => out(data.toString()), close: () => (wire.open && ((wire.open = false), ended.forEach((fn) => fn())), undefined), onMessage: (fn: typeof heard) => void (heard = fn), onClose: (fn: () => void) => void ended.push(fn) };
+        const link = new Link(null, CLIENT_LINK);
+        link.attach(wire, 0, false);
+        addClient(link, d);
+        return {
+          send(msg) {
+            // The holder is heard from: its hold's time starts again.
+            const h = token ? holds.held(token) : undefined;
+            if (h) holds.touch(h);
+            heard?.(Buffer.from(msg), false);
+          },
+          close: () => wire.close(),
+        };
+      },
+      run(id, script, what) {
+        const d = devices.get(id) ?? backSoon(id);
+        if (!d) return Promise.reject(new Error('the page went away'));
+        const h = holds.of(id);
+        if (h) holds.touch(h);
+        return step(d, script, what);
+      },
+      watch(fn) {
+        const seen = (t: CdpTarget, here: boolean) => {
+          const d = devices.get(t.id);
+          if (d && mine(d)) fn(t, here);
+        };
+        watchers.add(seen);
+        return () => void watchers.delete(seen);
+      },
+    };
+  };
+  /** What a client that begins with the browser asks first: where its socket is. */
+  const cdpVersion = (req: IncomingMessage, url: URL) => ({
+    Browser: `teleport/${VERSION}`,
+    'Protocol-Version': '1.3',
+    'User-Agent': `teleport/${VERSION}`,
+    webSocketDebuggerUrl: `ws://${req.headers.host ?? `localhost:${port()}`}${KEYED}cdp${url.searchParams.get('hold') ? `?hold=${encodeURIComponent(url.searchParams.get('hold')!)}` : ''}`,
+  });
 
   /** What is under the key: the API (`api/...`) and DevTools for a device (`d/<id>`, or `d` for the newest). */
   function keyed(rest: string, req: IncomingMessage, res: ServerResponse) {
     if (!fromThisMachine(req)) return json(res, { error: 'teleport answers this only on the machine it runs on' }, 403);
     if (rest.startsWith('api/')) return void api(rest.slice(4), new URL(req.url ?? '/', 'http://x'), req, res).catch((e: Error) => json(res, { error: e.message }, 409));
+    // Where Playwright's connectOverCDP and Puppeteer's connect look for the browser's socket and its pages.
+    const said = rest.replace(/\/+$/, '');
+    if (said.split('?')[0] === 'json/version') return json(res, cdpVersion(req, new URL(req.url ?? '/', 'http://x')));
+    if (said.split('?')[0] === 'json' || said.split('?')[0] === 'json/list') {
+      const at = `${req.headers.host ?? `localhost:${port()}`}`;
+      return json(res, [...devices.values()].map((d) => ({ id: d.id, type: 'page', title: describeUa(d.ua) || d.id, url: d.href, webSocketDebuggerUrl: `ws://${at}${KEYED}ws/${d.id}`, devtoolsFrontendUrl: inspectUrl(port(), key, d.id) })));
+    }
     if (rest !== 'd' && !rest.startsWith('d/')) return json(res, { error: 'unknown endpoint' }, 404);
     const id = rest.slice(2) || [...devices.keys()].pop();
     if (id) return void res.writeHead(302, { location: frontendPath(id), 'cache-control': 'no-store' }).end();
@@ -803,7 +872,11 @@ export function startDevServer(opts: DevServerOptions): Promise<DevServer> {
   async function api(rest: string, url: URL, req: IncomingMessage, res: ServerResponse) {
     const q = (k: string) => url.searchParams.get(k);
     // A device whose link dropped a moment ago is still there to ask: its page is likely on its way back.
-    const d = q('id') ? (devices.get(q('id')!) ?? backSoon(q('id')!)) : [...devices.values()].pop();
+    // A caller that holds a device means that one, unless it names another.
+    const token = req.headers['x-teleport-hold'] ?? q('hold');
+    const mine = holds.held(token);
+    const d = q('id') ? (devices.get(q('id')!) ?? backSoon(q('id')!)) : mine ? (devices.get(mine.id) ?? backSoon(mine.id)) : [...devices.values()].pop();
+    if (mine) holds.touch(mine);
     const asked = req.headers['x-teleport'];
     const by: Caller = asked === 'console' || asked === 'q' || asked === 'mcp' ? asked : 'other';
     /** Keeps an experiment in the journal, unless the caller keeps it as part of its own. */
@@ -834,6 +907,27 @@ export function startDevServer(opts: DevServerOptions): Promise<DevServer> {
     }
     if (rest === 'live') return json(res, [...devices.values()].map((x) => ({ ...snapshot(x, 0), points: undefined, requests: undefined })));
     if (rest === 'shim') return shim(d, req, res, by);
+    // A test run takes a device for itself: the one it names, else the first nobody holds.
+    if (rest === 'reserve') {
+      if (req.method !== 'POST') return json(res, { error: 'use POST' }, 405);
+      const free = q('id') ? d : [...devices.values()].find((x) => !holds.of(x.id));
+      if (!free) return json(res, { error: q('id') ? 'no such device' : devices.size ? 'every device is reserved' : 'no device connected' }, devices.size && !q('id') ? 423 : 404);
+      const held = holds.of(free.id);
+      if (held && held.token !== token) return json(res, { error: `reserved by ${held.as}` }, 423);
+      if (held) holds.drop(free.id);
+      const h = holds.take(free.id, holderName(q('as')), Number(q('ms')) || 0, q('frame') !== '0');
+      if (q('keep') !== '1') clear(free);
+      showFrame(free, h);
+      emit({ type: 'hold', id: free.id, as: h.as });
+      return json(res, { id: free.id, token: h.token, as: h.as, ms: h.ms, ua: free.ua, href: free.href, cdp: `ws://localhost:${port()}${KEYED}cdp?hold=${h.token}` });
+    }
+    if (rest === 'release') {
+      if (req.method !== 'POST') return json(res, { error: 'use POST' }, 405);
+      // The console may let go of any device: the person at the keyboard decides.
+      const h = mine ?? (by === 'console' && d ? holds.of(d.id) : undefined);
+      if (h) holds.drop(h.id);
+      return json(res, { released: h?.id ?? null });
+    }
     if (!d) return json(res, { error: q('id') ? 'no such device' : 'no device connected' }, 404);
     if (rest === 'presses') return json(res, pressesOf(d, Number(q('seconds')) || 60));
     if (rest === 'device') return json(res, snapshot(d, Number(q('seconds')) || 60));
@@ -865,6 +959,10 @@ export function startDevServer(opts: DevServerOptions): Promise<DevServer> {
     if (rest === 'keymap' && req.method !== 'POST') return json(res, keymap(d, null, null));
     // What follows changes the page or holds the device for a while.
     if (req.method !== 'POST') return json(res, { error: 'use POST' }, 405);
+    // A device a test run holds is its own; the console may still act, the person there decides.
+    if (by !== 'console' && !holds.free(d.id, token)) return json(res, { error: `reserved by ${holds.of(d.id)!.as}: pass its hold, or wait for it to be released` }, 423);
+    // Between suites: what the page threw and asked for so far is forgotten.
+    if (rest === 'clear') return json(res, clear(d));
     if (rest === 'keymap') {
       const r = keymap(d, q('key'), q('code'));
       return json(res, r, 'error' in r ? 400 : 200);
@@ -921,6 +1019,14 @@ export function startDevServer(opts: DevServerOptions): Promise<DevServer> {
       return json(res, r, 'error' in r ? 400 : 200);
     }
     json(res, { error: 'unknown endpoint' }, 404);
+  }
+
+  /** Forgets what the page threw and the requests it made so far: a suite starts from nothing. */
+  function clear(d: Device) {
+    const was = { errors: d.errors.total, requests: requestsOf(d).length };
+    d.errors.clear();
+    d.since = serverNow();
+    return { cleared: was };
   }
 
   /** Turns the inspector's DevTools side off. A lease keeps it loaded for the API's calls. */
@@ -1224,8 +1330,8 @@ export function startDevServer(opts: DevServerOptions): Promise<DevServer> {
     // Page scripts can't see WebSocket pings, so the agent hears this to know the link is alive.
     d.timers.push(setInterval(() => d.socket?.send('beat'), BEAT_MS));
     // What this session holds of the page, so the agent resends only what the dropped link lost.
-    const holds = resumed ? d.session.holds() : null;
-    ws.send(holds ? `resume ${holds.join(' ')}` : 'resume');
+    const has = resumed ? d.session.holds() : null;
+    ws.send(has ? `resume ${has.join(' ')}` : 'resume');
     // The same page on a new link: what it was asked and hasn't answered is asked again. It runs each once.
     if (relink) for (const a of d.asked.values()) ws.send(a.line);
     if (relink) {
@@ -1248,6 +1354,10 @@ export function startDevServer(opts: DevServerOptions): Promise<DevServer> {
     for (const [c, shown] of waiting ?? []) if (c.open) addClient(c, d, shown);
     emit({ type: 'page', id, kind, href, ua, ip });
     opts.onDevice?.(info(d));
+    // A page that reloaded while held shows the frame again.
+    const held = holds.of(id);
+    if (held && !relink) showFrame(d, held);
+    for (const fn of watchers) fn(cdpTarget(d), true);
   }
 
   /** A new page for a tab DevTools is open on: same as a navigation in Chrome, then restore DevTools' state. */
@@ -1276,6 +1386,7 @@ export function startDevServer(opts: DevServerOptions): Promise<DevServer> {
   /** Gives up on a page that didn't come back. DevTools stays open on the tab, waiting for one. */
   function expire(d: Device) {
     detached.delete(d.id);
+    holds.drop(d.id);
     failAsked(d);
     dropInspector(d);
   }
@@ -1525,6 +1636,7 @@ export function startDevServer(opts: DevServerOptions): Promise<DevServer> {
   /** Whose socket this is and what takes it. `dut`: the device's own, the agent's or its inspector's. */
   function route(req: IncomingMessage, url: URL): { dut: 'target' | 'cdp' | null; take: (ws: Peer) => void } | null {
     // DevTools' socket is under the key, and only for this machine.
+    if (url.pathname === KEYED + 'cdp') return fromThisMachine(req) ? { dut: null, take: (ws) => cdpBrowser(ws, cdpHost(url.searchParams.get('hold'))) } : null;
     if (url.pathname.startsWith(KEYED + 'ws/')) {
       const id = url.pathname.slice(KEYED.length + 3);
       return TAB_ID.test(id) && fromThisMachine(req) ? { dut: null, take: (ws) => clientLink(ws, id, url.searchParams) } : null;
@@ -1581,6 +1693,7 @@ export function startDevServer(opts: DevServerOptions): Promise<DevServer> {
         close: () =>
           new Promise<void>((done) => {
             for (const l of leases.values()) clearTimeout(l);
+            holds.clear();
             for (const d of devices.values()) {
               for (const t of d.timers) clearTimeout(t);
               d.socket?.terminate();

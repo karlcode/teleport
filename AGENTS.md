@@ -154,10 +154,12 @@ from top to bottom:
   (while no long answer is open on the right), a line says how many newer lines are below while you
   are scrolled back, and Esc returns to the newest. On quit the region is erased and the last 200
   log lines are left in the terminal as plain text.
-- **Two columns.** On the left, everything tlpt can do, as five groups, one open at a time:
+- **Two columns.** On the left, everything tlpt can do, as five groups. On a terminal with the
+  rows for it (43 or more) every group stays open, so each entry and its letter is on screen; on a
+  shorter one a single group is open and each closed one names what is in it. The groups:
   **measure** (how the app runs on the device as it is), **experiment** (change one thing and
   measure both ways), **video**, **input** (the remote) and **inspect** (DevTools, errors,
-  requests, the device). A closed group shows its letters, or what needs a look in it: the page's
+  requests, the device). A closed group names its entries, or what needs a look in it: the page's
   errors, the last key pressed, DevTools open, a portal while something in it runs. The open
   group's entries each have their letter, and beside them what they show now: a portal turning
   while it runs on a device, whoever started it; the clock time it last ran (`14:02`), with `✗`
@@ -171,7 +173,15 @@ from top to bottom:
   costs. The list scrolls with the highlight on a short terminal, and drops what each shows below
   80 columns.
 - **The device rows**, one per device, under the columns.
-- **The input**, always open on the last line, with what Enter does next on the right.
+- **The input**, always open, with what Enter does next on the right.
+- **The keys**, on the last line: the ones that act now, each on a plate with a word for what it
+  does. With nothing typed they are the list's and the letters most used; while a line is typed,
+  the input's; in remote mode, the remote's. A narrow terminal keeps the first of them and `?`
+  and `^C`; under 20 rows the line is left out.
+
+Until a device connects, the right side says how to get one, in its middle: what is waited for,
+the address to open, and the keys that work meanwhile. The line under the list says it instead
+while something else is open on the right.
 
 ```
   ◎ teleport  → localhost:5173
@@ -191,8 +201,8 @@ from top to bottom:
       advise                   │ 14:02 ✓ capture 10 · 10.4 s
       report                   │
     h history                  │
-  experiment   t               │
-  video                        │
+  experiment   try trial eval… │
+  video        playback verify │
   input        ↓               │
   inspect      2 errors        │
 ───────────────────────────────┴───────────────────────────────────────────────────────────────────
@@ -981,8 +991,111 @@ Cursor, Claude Desktop, Codex and others, in their MCP server configuration:
 
 Tools that only read or measure are marked read-only: `status`, `devices`, `device`, `errors`,
 `network`, `capture`, `probe`, `styles`, `guide`, `playback`, `survey`, `history`, `advise`,
-`report`. `trial`, `try`, `keys`, `hear`, `keymap`, `eval`, `verify`, `replay` and `shim` change
-what runs on the device.
+`report`. `trial`, `try`, `keys`, `hear`, `keymap`, `eval`, `verify`, `replay`, `shim`, `reserve`,
+`release` and `clear` change what runs on the device.
+
+## Driving devices from tests
+
+A test runner can hold a device, drive it, read what it threw, and let it go. With several devices
+connected, several runs go at once, one on each.
+
+### Reserving a device
+
+`tlpt reserve --as nightly` answers `{ id, token, cdp, … }`: the device named with `--id`, else the
+first nobody holds. While the hold lasts:
+
+- A call that acts on the device (`keys`, `eval`, `capture`, `trial`, `clear`, …) without the
+  token is refused with 423 and `reserved by nightly`. Reading (`errors`, `network`, `device`) is
+  never refused. The console may still act and may let the device go: the person at the keyboard
+  decides.
+- The device shows a thin frame in teleport's colour with `◎ teleport · nightly` in a corner, so
+  whoever walks past sees it is being driven. `--no-frame` leaves it off, for a run that measures
+  frames: what the frame costs a device has not been measured.
+- The console says `reserved by nightly` in its log and shows `◎ nightly` on the device's row.
+
+The hold ends with `tlpt release`, or when its holder makes no call for 120 s (`--seconds`, 600 at
+most), so a run that died frees its device. Set `TLPT_HOLD` to the token and every `tlpt q` call
+shows it and goes to that device:
+
+```sh
+export TLPT_HOLD=$(tlpt q reserve --as nightly --json | jq -r .token)
+tlpt q keys right,right,ok
+tlpt q errors
+tlpt q release
+```
+
+`tlpt clear` forgets what the page threw and the requests it made so far, so `errors` and `network`
+answer for what comes next. Reserving does it too.
+
+`--all` runs a command on every connected device at once and answers with an object keyed by
+device id: `tlpt q trial focus-ring.mjs --all`, `tlpt q eval --all "document.title"`.
+
+### From a test file: `tlpt/drive`
+
+```js
+import { reserve } from 'tlpt/drive';
+
+const device = await reserve({ as: 'smoke', wait: 30_000 });
+await device.keys('right,right,ok');                      // or steps, as POST keys takes them
+const title = await device.eval('document.title');         // ES5 on an old engine
+const { total, errors } = await device.errors();
+const slow = await device.network({ minMs: 500 });
+await device.clear();                                      // between tests
+const report = await device.capture(5000);
+await device.release();
+```
+
+It is a client of the HTTP API and nothing else, so it works under any runner (`node --test`,
+vitest, Playwright). `reserve` takes `{ id, as, ms, frame, wait, keep, port, key }`; `wait` is how
+long to wait for a device to be free.
+
+### Playwright
+
+`fixtures()` is the same thing shaped for `test.extend`, with no Playwright of its own, so it uses
+yours:
+
+```js
+import { test as base } from '@playwright/test';
+import { fixtures } from 'tlpt/drive';
+export const test = base.extend(fixtures());
+
+test('the remote moves focus', async ({ device }) => {
+  await device.keys('right,right,down');
+  expect((await device.errors()).total).toBe(0);
+});
+```
+
+| Fixture | Scope | Is |
+|---|---|---|
+| `device` | worker | This worker's own device, reserved as `<project> #<worker>` and released when the worker ends. With `workers: 3` and three devices, three files run at once. |
+| `devicePage` | test | The device as a Playwright `Page`, over `connectOverCDP`. |
+| `deviceBrowser` | worker | The `Browser` behind it. |
+
+Before each test the device's errors and requests are forgotten, and what the page threw during a
+test is put on it as a `device errors` annotation. `fixtures({ ids: ['k3x9q2ab', 'p7m2d4cf'] })`
+names the devices, a worker each. `examples/playwright` is a suite to copy.
+
+### connectOverCDP, and other protocol clients
+
+`chromium.connectOverCDP('http://localhost:7070/__teleport/<key>')` works, and so does Puppeteer's
+`connect({ browserURL })`: `json/version` there names a browser-level socket, `cdp`, on which each
+device is a page. `device.endpoint` is that socket for one held device alone. What goes through it:
+
+- `Target.*`: `getTargets`, `setDiscoverTargets`, `setAutoAttach`, `attachToTarget`,
+  `attachToBrowserTarget`, `detachFromTarget`, `getTargetInfo`. A page can't be made or closed
+  from the laptop: `createTarget` and `closeTarget` are refused with why.
+- `Input.dispatchKeyEvent` presses the key as the remote does, whole on key down (a printable key
+  types its character); `Input.insertText` types; `Input.dispatchMouseEvent` clicks what is at the
+  point on release.
+- `Page.*`, `Runtime.*`, `DOM.*`, `CSS.*`, `Network.*`: what [DevTools has](#what-works-in-devtools),
+  since a session is a DevTools client of the device.
+
+Checked with Playwright 1.65 against Chrome 158 as the device: `page.title()`, `evaluate`,
+`locator`, `keyboard.press`, a `CDPSession`. Playwright's `evaluate` and locators run a script of
+Playwright's own that an ES5 engine can't parse, so on an old device use `device.keys` and
+`device.eval`, or `Runtime.evaluate` on a session, which need nothing but the agent.
+`page.goto`, screenshots and emulation are not there: a device opens its own app, and the
+laptop can't see its pixels.
 
 ## The HTTP API
 
@@ -1011,14 +1124,19 @@ curl "http://localhost:7070/__teleport/$key/api/live"
 | `POST capture?ms=10000` | The capture's report, after the window and 1.5 s to settle. |
 | `POST trial` with a JSON body `{ spec }` | The trial's report; 400 with what is wrong with the spec; 409 while one is running on that device. |
 | `GET presses?seconds=60` | The presses the page saw in the last `seconds`, oldest first: `t` (page time), `keyCode`, and `key`, the remote key it is, or null. |
+| `POST reserve?as=nightly` (`id`, `ms`, `frame=0`, `keep=1`) | `{ id, token, as, ms, ua, href, cdp }`: the device is this caller's until `release` or `ms` with no call. 423 when it, or every device, is held. See [Driving devices from tests](#driving-devices-from-tests). |
+| `POST release` | `{ released }`: ends the hold the `x-teleport-hold` header names. |
+| `POST clear` | `{ cleared: { errors, requests } }`: forgets both, so the next reads start from now. |
 | `GET shim` | `{ on, filled, names }`: whether the shim is on, what the device's page filled, and what it can. |
 | `POST shim?on=1` or `?on=0` | Turns the shim on or off for every page from now, and reloads the devices: `{ on, reloaded }`. |
 
-An `x-teleport` header (`q`, `mcp` or `console`) only names the caller in the console's log. An
+An `x-teleport-hold` header carries a hold's token: it is what lets a call act on a held device,
+and with no `id` it picks that device. An `x-teleport` header (`q`, `mcp` or `console`) only names the caller in the console's log. An
 `x-teleport-part: 1` header says the call is a step of a bigger experiment (a survey, a replay),
 which keeps its own line in the journal, so the step isn't kept on its own.
 DevTools for a device is `http://localhost:7070/__teleport/<key>/d/<id>`; each device's `inspect`
-field in `live` is that link.
+field in `live` is that link. Beside `api/` under the key are `json/version` and `json/list`, as a
+browser's debugging port answers them, and the browser-level socket `cdp`.
 
 From a script in the same process, `import { startDevServer } from 'tlpt'` starts the server with
 `{ port, host, app, insecure, manifest, key, via, journal }` and returns `{ http, key, close() }`;
