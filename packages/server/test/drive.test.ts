@@ -96,17 +96,17 @@ describe('driving devices from a test run', () => {
   const settle = () => new Promise((r) => setTimeout(r, 30));
 
   it('reserves a device each for two runs, refuses a third, and frees them on release', async () => {
-    const one = await device(base, 'tv-1');
-    const two = await device(base, 'tv-2');
+    const one = await device(base, 'dev-1');
+    const two = await device(base, 'dev-2');
     while ((await devices({ port })).length < 2) await settle();
     const a = await reserve({ port, as: 'suite a' });
     const b = await reserve({ port, as: 'suite b' });
-    expect([a.id, b.id].sort()).toEqual(['tv-1', 'tv-2']);
+    expect([a.id, b.id].sort()).toEqual(['dev-1', 'dev-2']);
     await expect(reserve({ port })).rejects.toThrow('every device is reserved');
     await settle();
     // Each device shows who holds it.
     expect(one.asked.concat(two.asked).filter((s) => s.includes('__tlpt_hold')).map((s) => /teleport · ([^"]+)/.exec(s)?.[1]).sort()).toEqual(['suite a', 'suite b']);
-    expect(events).toEqual(expect.arrayContaining(['tv-1 suite a', 'tv-2 suite b']));
+    expect(events).toEqual(expect.arrayContaining(['dev-1 suite a', 'dev-2 suite b']));
 
     // Anyone else is refused what acts on it; the holder isn't, and its calls go to its own device.
     const refused = await api(`clear?id=${a.id}`);
@@ -123,7 +123,7 @@ describe('driving devices from a test run', () => {
 
     await a.release();
     await settle();
-    expect(events).toContain('tv-1 null');
+    expect(events).toContain('dev-1 null');
     expect(one.asked.at(-1)).toContain('removeChild');
     expect((await api(`clear?id=${a.id}`)).status).toBe(200);
     const again = await reserve({ port, frame: false });
@@ -146,7 +146,7 @@ describe('driving devices from a test run', () => {
   });
 
   it("answers a browser's side of the protocol: pages to attach to, keys that go as the remote's do", async () => {
-    const tv = await device(base, 'cdp-1');
+    const dut = await device(base, 'cdp-1');
     while (!(await devices({ port })).length) await settle();
     expect((await fetch(`http://${base}/__teleport/nope/json/version`)).status).toBe(403);
     const version = (await (await fetch(`http://${base}/__teleport/${KEY}/json/version/`)).json()) as { webSocketDebuggerUrl: string };
@@ -166,10 +166,10 @@ describe('driving devices from a test run', () => {
     const sessionId = attached.params.sessionId as string;
     expect(attached.params.targetInfo).toMatchObject({ targetId: 'cdp-1', type: 'page', browserContextId: 'devices' });
     // The agent is told to load the inspector: a session is a DevTools client of the device.
-    await next(tv.ws, (s) => s.startsWith('load '));
+    await next(dut.ws, (s) => s.startsWith('load '));
 
     expect(await ask(4, 'Input.dispatchKeyEvent', { type: 'keyDown', key: 'ArrowDown', code: 'ArrowDown', windowsVirtualKeyCode: 40 }, sessionId)).toEqual({ id: 4, result: {}, sessionId });
-    expect(tv.asked.at(-1)).toContain('n=40');
+    expect(dut.asked.at(-1)).toContain('n=40');
     expect(await ask(5, 'Input.dispatchKeyEvent', { type: 'keyUp', key: 'ArrowDown' }, sessionId)).toEqual({ id: 5, result: {}, sessionId });
     // A world asked for by name is the page's own, announced on the page's frame, which is the target's id.
     const world = ask(6, 'Page.createIsolatedWorld', { frameId: 'cdp-1', worldName: 'util' }, sessionId);
@@ -188,11 +188,11 @@ describe('driving devices from a test run', () => {
     held.close();
     await mine.release();
     ws.close();
-    tv.ws.close();
+    dut.ws.close();
   });
 
   it('gives Playwright a device for each worker, cleared before each test', async () => {
-    const tv = await device(base, 'pw-1');
+    const dut = await device(base, 'pw-1');
     while (!(await devices({ port })).some((d) => d.device.id === 'pw-1')) await settle();
     const f = fixtures({ port, ids: ['pw-1'] }) as any;
     expect(f.device[1]).toEqual({ scope: 'worker' });
@@ -206,9 +206,9 @@ describe('driving devices from a test run', () => {
       expect(events).toContain('pw-1 playwright #1');
     }, { parallelIndex: 0 });
     expect(used).toBe('pw-1');
-    expect(tv.asked.filter((s) => s.includes('keydown')).length).toBe(2);
+    expect(dut.asked.filter((s) => s.includes('keydown')).length).toBe(2);
     await settle();
     expect(events.at(-1)).toBe('pw-1 null');
-    tv.ws.close();
+    dut.ws.close();
   });
 });
