@@ -62,6 +62,21 @@ export const MENU: Entry[] = [...listed, ...COMMANDS.filter((c) => !c.agents && 
 
 export const entry = (name: string): Entry | undefined => MENU.find((e) => e.name === name.toLowerCase());
 
+/**
+ * What a shell runs by name: every entry in the list, and the commands q.ts keeps for scripts and
+ * agents (status, guide, ...), which the console's list leaves out. `tlpt status` is in the documents,
+ * so it has to run.
+ */
+export const runnable = (name: string): Entry | undefined => {
+  const listed = entry(name);
+  if (listed) return listed;
+  const cmd = COMMANDS.find((c) => c.agents && c.name === name.toLowerCase());
+  return cmd ? { name: cmd.name, brief: cmd.brief, cmd, group: 'inspect' } : undefined;
+};
+
+/** Every name a shell runs, the list's first: what an unknown name is compared with. */
+export const RUNNABLE: string[] = [...MENU.map((e) => e.name), ...COMMANDS.filter((c) => c.agents).map((c) => c.name)];
+
 /** A group's entries, in order. */
 export const entriesOf = (g: Group): Entry[] => MENU.filter((e) => e.group === g);
 

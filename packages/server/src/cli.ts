@@ -10,7 +10,7 @@ import { readKey } from './key.js';
 import { AUTO_LINE } from './live.js';
 import { findEndpoint, pointAt, tunnelCommand, type RunningTunnel, type TunnelEndpoint } from './tunnel.js';
 import { serveMcp } from './mcp.js';
-import { entry, MENU, REMOTE_KEYS, type Entry } from './menu.js';
+import { MENU, REMOTE_KEYS, RUNNABLE, runnable, type Entry } from './menu.js';
 import { argsFromWords, COMMANDS, nearest, parseQ, Q_USAGE, request, runData, type Args, type Command } from './q.js';
 import { BASE, inspectUrl, lanAddress, startDevServer, type DevServer, type DevServerOptions } from './server.js';
 import { ESC_WAIT_MS, KeyReader, PlainScreen, TermScreen, type Key, type Screen } from './term.js';
@@ -107,7 +107,7 @@ async function main() {
   if (first === 'q') return q(process.argv.slice(3));
   if (first === 'help' && process.argv[3]) return q([...process.argv.slice(3), '--help']);
   if (first === 'help') return print(helpView(mainHelp(), cols(), color, light));
-  if (entry(first)) return q(process.argv.slice(2));
+  if (runnable(first)) return q(process.argv.slice(2));
 
   if (process.argv[2] === 'mcp') {
     const argv = process.argv.slice(3);
@@ -152,13 +152,13 @@ async function q(argv: string[]) {
   const json = takeFlag(argv, '--json', false) !== undefined || !live;
   const wantsHelp = takeFlag(argv, '--help', false) !== undefined || takeFlag(argv, '-h', false) !== undefined;
   const { name, pos, flags } = parseQ(argv);
-  const e = entry(name);
+  const e = runnable(name);
   if (!name || (wantsHelp && !e)) {
     // A person at a terminal gets the short page; piped, an agent gets every command in full.
     return finish(live ? helpView(qHelp(), cols(), color, light) : [Q_USAGE]);
   }
   if (!e) {
-    const near = nearest(name, MENU.map((x) => x.name));
+    const near = nearest(name, RUNNABLE);
     die(`no command ${name}${near ? `; did you mean ${near}?` : `: ${MENU.map((x) => x.name).join(', ')}`} (tlpt --help)`);
   }
   if (!e.cmd) return wantsHelp ? finish(helpView(handHelp(e), cols(), color, light)) : byHand(e, pos, flags.id || undefined, port);
@@ -360,7 +360,7 @@ async function dev() {
     const t = appTarget(given);
     if (t.kind === 'dir' && !existsSync(t.dir)) {
       // A bare word that is nearly a command's name was most likely meant as one.
-      const near = /^[a-z-]+$/i.test(given) ? nearest(given, MENU.map((e) => e.name)) : null;
+      const near = /^[a-z-]+$/i.test(given) ? nearest(given, RUNNABLE) : null;
       die(near ? `no command ${given}; did you mean ${near}? (tlpt --help)` : `${given} is not a command, a folder here, a port or an address (tlpt --help)`);
     }
   }

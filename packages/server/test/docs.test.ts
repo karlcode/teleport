@@ -4,6 +4,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { COMMANDS } from '../src/q.js';
+import { runnable } from '../src/menu.js';
 import { REWRITE_MAX } from '../src/app.js';
 
 const ROOT = join(import.meta.dirname, '../../..');
@@ -49,6 +50,20 @@ describe.each(docs)('$f', ({ f, text: md }) => {
 });
 
 describe('what the documents say of the code', () => {
+  it('names only commands a shell runs', () => {
+    // `tlpt status` was in two documents and answered "status is not a command": the shell looked a
+    // name up in the console's list, which leaves out the commands kept for scripts and agents.
+    // Inside code only: in a sentence, the word after tlpt is a verb.
+    // `tlpt name` stands for any of them; "tlpt says" opens a wrapped sentence.
+    const other = new Set(['q', 'mcp', 'help', 'localhost', 'name', 'says']);
+    const named = new Set<string>();
+    for (const { text: md } of docs) {
+      // A command at the start of a code span or of a line in a code block: where one is typed.
+      for (const m of md.matchAll(/(?:`|^\s*(?:\$ )?)tlpt (?:q )?([a-z][a-z-]*)(?![\w./:-])/gm)) named.add(m[1]!);
+    }
+    expect([...named].filter((n) => !other.has(n) && !runnable(n))).toEqual([]);
+  });
+
   it('lists every q command in the reference', () => {
     const reference = text('AGENTS.md');
     expect(COMMANDS.map((c) => c.name).filter((name) => !reference.includes(`\`${name}`))).toEqual([]);
