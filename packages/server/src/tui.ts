@@ -1,6 +1,6 @@
 // What `tlpt` prints: the mark and its links, pinned at the top; and the help screens. Phosphor ink
 // (a pale sage) on the terminal's own background, labels faint and values in ink, with two accents:
-// teal for the name, addresses and keys that do something on the device, blue for keys that only read. Links are printed whole, so any
+// teal for the name, addresses, the letters and what Enter does, blue only in the beam. Links are printed whole, so any
 // terminal opens them on a click, and carry an OSC 8 hyperlink to the same URL. Pure, so it is tested
 // without a terminal.
 

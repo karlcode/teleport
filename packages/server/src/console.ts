@@ -356,8 +356,10 @@ function listLines(s: ViewState, w: number, h: number): string[] {
       out.push(`${wide ? '  ' : ' '}${sel} ${r.key ? p.accent(r.key) : ' '} ${pad(name, 9)}${mark}${wide && r.status ? ' ' + r.status : ''}`);
     }
   }
-  // Scrolled: the last row in view says how many more there are, in place of a row.
+  // Scrolled: the last row in view says how many more there are, in place of a row; and the first,
+  // how many are above it. A list cut off with nothing to say so reads as the whole list.
   if (top + h < s.list.length && h > 1) out[h - 1] = `  ${p.faint(`${G.down} ${s.list.length - top - h} more`)}`;
+  if (top > 0 && h > 3 && s.at > top) out[0] = `  ${p.faint(`${G.up} ${top + 1} more`)}`;
   return out;
 }
 
@@ -537,7 +539,11 @@ function inputLine(s: ViewState, cols: number): string {
   const lead = `  ${p.ink('>')} `;
   const tone = iv.tone === 'bad' ? p.bad : iv.tone === 'warn' ? p.warn : p.good;
   const on = iv.on ? p.faint('on ') + tone(G.dot) + ' ' + p.ink(iv.on) : p.warn(`${G.ring} no device yet`);
-  const said = s.notice ? p.ink(s.notice) : iv.error ? p.bad(`${G.no} ${iv.error}`) : p.faint(iv.hint);
+  // What Enter does is the one action offered here, so it is the most visible thing on the line, not
+  // the faintest: the key on an accent plate, as the keys under it are on plates, and its words in ink.
+  const does = /^enter (.+)$/.exec(iv.hint);
+  const hint = does && s.color !== 'none' ? `${p.inverse(p.accent(' enter '))} ${p.ink(does[1]!)}` : p.faint(iv.hint);
+  const said = s.notice ? p.ink(s.notice) : iv.error ? p.bad(`${G.no} ${iv.error}`) : hint;
   // The text takes what it needs and what is said follows it, cut to fit; a mistake or a notice
   // keeps up to half the line, the text scrolling to its caret in the rest. The device gives way first.
   const loud = !!iv.error || !!s.notice;
@@ -1193,10 +1199,11 @@ export class Console {
   /** The keys that act now, for the last line: the remote's while it has the keyboard, the input's while a line is typed, else the list's and the letters most used. */
   private keysNow(remote: boolean, duts: number): [string, string][] {
     if (remote) return [['arrows', 'move'], ['enter', 'ok'], [G.back, 'back'], ['0-9', 'digits'], ['c', 'capture'], ['m', 'map a key'], ['esc', 'leave']];
-    if (this.input) return [['enter', 'run'], ['tab', 'complete'], [ud(), 'pick'], ['esc', 'clear']];
+    // Enter is on the input's own line, with what it does now: one label for it, where the eyes are.
+    if (this.input) return [['tab', 'complete'], [ud(), 'pick'], ['esc', 'clear']];
     // In the order a session goes: drive it there, measure, change one thing, then look closer.
     const letters = ['remote', 'capture', 'try', 'errors', 'devtools', 'survey', 'probe', 'network', 'history'].map((n) => entry(n)).filter((e): e is Entry => !!e?.key);
-    return [[ud(), 'move'], ['enter', 'open'], ...letters.map((e): [string, string] => [e.key!, e.name]), ...(duts > 1 ? ([['tab', 'device']] as [string, string][]) : []), ['?', 'help'], ['^C', 'quit']];
+    return [[ud(), 'move'], ...letters.map((e): [string, string] => [e.key!, e.name]), ...(duts > 1 ? ([['tab', 'device']] as [string, string][]) : []), ['?', 'help'], ['^C', 'quit']];
   }
 
   /** The terminal has the rows for every group to stay open, so nothing waits behind a closed one. */
@@ -1331,7 +1338,7 @@ export class Console {
       this.paneLong = lines.length - (room - 1);
       const top = Math.min(this.paneTop, this.paneLong);
       const left = lines.length - top - (room - 1);
-      return [...out, ...lines.slice(top, top + room - 1), p.faint(left > 0 ? `${G.down} ${left} more line${left === 1 ? '' : 's'}${sp()}page down` : `${G.up} page up`)];
+      return [...out, ...lines.slice(top, top + room - 1), p.faint(left > 0 ? `${G.down} ${left} more line${left === 1 ? '' : 's'}${sp()}page down${top > 0 ? `${sp()}${G.up} page up` : ''}` : `${G.up} page up`)];
     }
     if (out.length === 1) out.push('', p.faint(`nothing yet${sp()}${enterSays(e.name)}${sp()}? help`));
     return out.slice(0, h).map((l) => truncate(l, w));

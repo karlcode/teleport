@@ -169,11 +169,13 @@ from top to bottom:
   its latest runs; for an entry, while it runs, a beam between two portals filling with its
   progress (a capture's seconds and live fps, a trial's runs); its runs this session, whoever
   asked (this console, `q` or an AI agent over MCP); and what it shows now (see below). Page Up
-  and Page Down scroll a long answer. `?` adds what the entry does, how to type it and what it
-  costs. The list scrolls with the highlight on a short terminal, and drops what each shows below
+  and Page Down scroll a long answer, and its last row says which way there is more. `?` adds what the entry does, how to type it and what it
+  costs. The list scrolls with the highlight on a short terminal, saying how many entries are cut off
+  above and below, and drops what each shows below
   80 columns.
 - **The device rows**, one per device, under the columns.
-- **The input**, always open, with what Enter does next on the right. When the first device
+- **The input**, always open, with what Enter does next on the right, the key on a teal plate:
+  it is the one action the console offers you now, so the keys line does not name Enter again. When the first device
   connects the highlight moves to `remote`, so Enter drives it: driving the device to the screen
   you came to look at is what comes first. Once a key has been pressed the highlight is yours, and
   nothing moves it.

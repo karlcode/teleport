@@ -193,7 +193,7 @@ function harness(duts: DutSource[] = [], o: Options = {}) {
 }
 
 /** The region without its last line when that is the keys, which the other helpers read past. */
-const body = (lines: string[]) => (/^ {2}(↑↓|up\/down|enter|arrows) \w+ {3}/.test(strip(lines.at(-1) ?? '')) ? lines.slice(0, -1) : lines);
+const body = (lines: string[]) => (/^ {2}(↑↓|up\/down|tab|arrows) \w+ {3}/.test(strip(lines.at(-1) ?? '')) ? lines.slice(0, -1) : lines);
 
 /** Where the list's bottom rule is: the lines under it are the device rows and the input. */
 const ruleAt = (lines: string[]) => lines.map(strip).findLastIndex((l) => /^[─-]+[┴+][─-]*$/.test(l));
@@ -302,7 +302,7 @@ describe('the live region', () => {
     h.sample();
     // Nothing waits behind a closed group: every entry is on screen with its letter.
     expect(h.list().filter(Boolean).map((l) => l.trim().replace(/^› /, ''))).toEqual(GROUPS.flatMap((g) => [g.id, ...MENU.filter((e) => e.group === g.id).map((e) => (e.key ? `${e.key} ${e.name}` : e.name))]));
-    expect(h.keys()).toBe('  ↑↓ move   enter open   r remote   c capture   t try   e errors   d devtools   ? help   ^C quit');
+    expect(h.keys()).toBe('  ↑↓ move   r remote   c capture   t try   e errors   d devtools   s survey   ? help   ^C quit');
     // The arrows go on through every group's entries.
     for (let i = 0; i < 7; i++) h.key('down');
     expect(h.at()).toBe('experiment');
@@ -310,13 +310,13 @@ describe('the live region', () => {
     expect(h.at()).toBe('try');
     // Typing, the keys are the input's; in remote mode, the remote's.
     h.type('cap');
-    expect(h.keys()).toBe('  enter run   tab complete   ↑↓ pick   esc clear');
+    expect(h.keys()).toBe('  tab complete   ↑↓ pick   esc clear');
     h.key('escape');
     h.hot('r');
     expect(h.keys()).toBe('  arrows move   enter ok   ⌫ back   0-9 digits   c capture   m map a key   esc leave');
     // A narrow terminal keeps the first keys, and help and quit; a short one gives the line to the list.
     const narrow = harness([dut('ab12')], { cols: 60 });
-    expect(narrow.keys()).toBe('  ↑↓ move   enter open   r remote   ? help   ^C quit');
+    expect(narrow.keys()).toBe('  ↑↓ move   r remote   c capture   t try   ? help   ^C quit');
     expect(harness([dut('ab12')], { rows: 16 }).keys()).toBe('');
     // On a plate where there is colour.
     expect(harness([dut('ab12')], { color: 'truecolor' }).raw().length).toBeGreaterThan(0);
@@ -1033,6 +1033,8 @@ describe('the keys', () => {
       expect(h.side().at(-1)).toMatch(/^↓ \d+ more lines · page down$/);
       h.key('pagedown');
       expect(h.side()[4]).not.toBe('line 0');
+      // Cut off at both ends now, and the last row says both.
+      expect(h.side().at(-1)).toMatch(/^↓ \d+ more lines · page down · ↑ page up$/);
       expect(h.scrolls).toEqual([]);
       h.key('escape');
       expect(h.side()[4]).toBe('line 0');
@@ -1458,6 +1460,23 @@ describe('the palette', () => {
     const none = harness();
     none.type('xyz');
     expect(none.rows().at(-1)).toMatch(/no device yet$/);
+  });
+
+  it('says what a scrolled list hides above as well as below, and never hides the highlight to say it', () => {
+    const h = harness([dut('ab12')], { rows: 14 });
+    expect(h.list().filter(Boolean)[0]).toBe('  measure');
+    for (let i = 0; i < 6; i++) h.key('down');
+    const list = h.list().filter(Boolean);
+    expect(list[0]).toMatch(/^ {2}↑ \d+ more$/);
+    expect(list.at(-1)).toMatch(/^ {2}↓ \d+ more$/);
+    expect(h.at()).toBeTruthy();
+  });
+
+  it('puts what Enter does on a plate, where there is colour: the one action offered is the most visible thing on its line', () => {
+    const h = harness([dut('ab12')], { color: 'truecolor' });
+    const line = h.raw().find((l) => strip(l).startsWith('  > '))!;
+    expect(line).toContain('\x1b[7m\x1b[38;2;63;212;192m enter \x1b[39m\x1b[27m');
+    expect(strip(line)).toMatch(/^ {2}> .* enter  captures 10 s/);
   });
 
   it('scrolls the list with the highlight when the terminal is short, and says how many more', () => {

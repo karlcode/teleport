@@ -291,7 +291,9 @@ groups of commands (`menu.ts`) on the left, and what is highlighted opened up on
 group stays open when the terminal has the rows for all of them (the entries, the groups and 14
 more); on a shorter one a single group is open and each closed one names its entries. The last
 line names the keys that act now (the list's, the input's while a line is typed, the remote's in
-remote mode), dropped from the middle as the width shrinks and left out under 20 rows. With no
+remote mode), dropped from the middle as the width shrinks and left out under 20 rows. Enter is not
+among them: what it does is said once, on the input line, on an accent plate where there is colour.
+A list or an answer cut off by the height says so at the end that is cut, above as well as below. With no
 device, the right side says how to get one, centred. Nothing beside an entry counts up: the time it last ran is a clock time, since a count of
 seconds since read as a timer still running. A reload asked for counts down the 10 s it has to come
 back, on the device's row and its card, and is said in the log when it comes back or doesn't. An answer is
