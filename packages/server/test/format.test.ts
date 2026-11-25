@@ -166,7 +166,7 @@ describe('answers as a person reads them', () => {
     expect(lines[1]!.startsWith('  ⎿ 58 fps')).toBe(true);
     for (const l of lines) expect(width(l)).toBeLessThanOrEqual(29);
     const wrapped = block(paint('truecolor'), 30, 'remote failed', [paint('truecolor').bad('nothing matches #menu on this page at all')], 'bad', { wrap: true });
-    expect(wrapped.map(strip)).toEqual(['● remote failed', '  ⎿ nothing matches #menu on', '    this page at all']);
+    expect(wrapped.map(strip)).toEqual(['✗ remote failed', '  ⎿ nothing matches #menu on', '    this page at all']);
     // The red is reopened on the wrapped line rather than lost.
     expect(wrapped[2]).toContain('\x1b[38;2;240;110;90m');
   });
@@ -189,7 +189,7 @@ describe('answers as a person reads them', () => {
     expect(out).toContain('● capture k3x9q2ab · 10 s · 7 key presses');
     // A page that went away mid-capture: what was recorded, of what was asked, and why.
     const cut = text(humanize('capture', {}, { ...capture, seconds: 3.2, cutShort: { askedS: 10, why: 'the page went away' } }, 'k3x9q2ab', p, 100));
-    expect(cut).toContain('● capture k3x9q2ab · 3.2 s of 10 · the page went away · 7 key presses');
+    expect(cut).toContain('▲ capture k3x9q2ab · 3.2 s of 10 · the page went away · 7 key presses');
     expect(out).toContain('  ⎿ frames      54.1 fps · p50 16.7 · p95 33.4 · worst 160 ms · 6 over 33 ms · 4 over 50 ms');
     expect(out).toContain('    main        4 long tasks, 600 ms · worst 150 ms · timer lag p95 3 ms, worst 152 ms');
     expect(out).toContain('    keys        key → frame p50 41 · p95 88 · worst 160 ms · 1 drew nothing');
@@ -207,7 +207,7 @@ describe('answers as a person reads them', () => {
   it('reports a trial: checks, clear differences with medians, interval and verdict, the rest counted, notes wrapped', () => {
     const lines = formatTrial(trial, p, 100);
     const out = text(lines);
-    expect(out).toContain('● trial focus ring k3x9q2ab · 1 failed · Linux · Chrome 63 · 3 variants, 5 runs each · 1 min 48 s');
+    expect(out).toContain('▲ trial focus ring k3x9q2ab · 1 failed · Linux · Chrome 63 · 3 variants, 5 runs each · 1 min 48 s');
     expect(out).toContain('  ⎿ checks      outlineOffset yes · willChange no · boxShadowInset yes');
     expect(out).toContain('    clear differences from outline (medians; 95% interval of the change)');
     expect(out).toMatch(/^ {6}box-shadow {3}frame time p95 {3}18\.4 → 33\.1 ms {3}\+14\.7 ms {3}\+9\.9 to \+20 {4}worse$/m);
@@ -234,12 +234,12 @@ describe('answers as a person reads them', () => {
 
   it('says a trial had failed runs where a narrow head still shows it, amber when only some failed', () => {
     const t = paint('truecolor');
-    expect(strip(formatTrial(trial, t, 60)[0]!)).toMatch(/^● trial focus ring k3x9q2ab · 1 failed · /);
-    expect(formatTrial(trial, t, 80)[0]).toMatch(/^\x1b\[38;2;242;173;72m●/);
+    expect(strip(formatTrial(trial, t, 60)[0]!)).toMatch(/^▲ trial focus ring k3x9q2ab · 1 failed · /);
+    expect(formatTrial(trial, t, 80)[0]).toMatch(/^\x1b\[38;2;242;173;72m▲/);
     const stopped = strip(formatTrial({ ...trial, truncated: true }, t, 60)[0]!);
-    expect(stopped).toMatch(/^● trial focus ring k3x9q2ab · 1 failed · stopped early · /);
+    expect(stopped).toMatch(/^▲ trial focus ring k3x9q2ab · 1 failed · stopped early · /);
     const allFailed = { ...trial, samples: trial.samples.map((x) => ({ ...x, ok: false })) };
-    expect(formatTrial(allFailed, t, 80)[0]).toMatch(/^\x1b\[38;2;240;110;90m●/);
+    expect(formatTrial(allFailed, t, 80)[0]).toMatch(/^\x1b\[38;2;240;110;90m✗/);
     expect(formatTrial({ ...trial, samples: trial.samples.map((x) => ({ ...x, ok: true })) }, t, 80)[0]).not.toMatch(/^\x1b\[38;2;(242|240)/);
   });
 
@@ -458,7 +458,7 @@ describe('answers as a person reads them', () => {
   it('says how a key sequence ended: pressed, stopped on a routine line, or failed with why', () => {
     expect(text(formatKeys(run('done', 3), p, 80, { id: 'k3x9q2ab' }))).toBe('● keys k3x9q2ab · right right ok · 3 pressed');
     expect(text(formatKeys(run('stopped', 2), p, 80, { id: 'k3x9q2ab' }))).toBe('· keys k3x9q2ab · right right ok · stopped after 2 of 3');
-    expect(text(formatKeys(run('failed', 1, 'nothing matches #menu'), p, 80, { id: 'k3x9q2ab' }))).toBe('● keys k3x9q2ab failed after 1 of 3\n  ⎿ nothing matches #menu');
+    expect(text(formatKeys(run('failed', 1, 'nothing matches #menu'), p, 80, { id: 'k3x9q2ab' }))).toBe('✗ keys k3x9q2ab failed after 1 of 3\n  ⎿ nothing matches #menu');
     // The console still calls it with three arguments.
     expect(text(formatKeys(run('done', 3), p, 80))).toBe('● keys · right right ok · 3 pressed');
   });

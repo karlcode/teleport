@@ -48,6 +48,6 @@ describe('try', () => {
     expect(list[0]).toBe('● try');
     expect(list[1]).toMatch(/shadow +box-shadow on every tile$/);
     const played = say({ verdicts: [{ name: 'hevc 1080p', plays: true, firstFrameMs: 120.4, dropped: 0, why: null, saidYes: true }, { name: 'av1 1080p', plays: false, firstFrameMs: null, dropped: null, why: 'no frames decoded', saidYes: true }], notMade: {} });
-    expect(played).toEqual(['● clips played ab12 · 1 of 2 play', '  ⎿ hevc 1080p  plays · first frame 120 ms', "    av1 1080p   doesn't play · no frames decoded · though the engine said yes"]);
+    expect(played).toEqual(['▲ clips played ab12 · 1 of 2 play', '  ⎿ hevc 1080p  plays · first frame 120 ms', "    av1 1080p   doesn't play · no frames decoded · though the engine said yes"]);
   });
 });

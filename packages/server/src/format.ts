@@ -188,14 +188,21 @@ function squeeze(values: (number | null)[], n: number): (number | null)[] {
 type Tone = 'ink' | 'good' | 'warn' | 'bad' | 'faint';
 
 /**
+ * An event's bullet. Each tone has a shape of its own, so it reads with NO_COLOR and to the one man
+ * in twelve who sees red and green alike: good, warn and bad are 7.5 apart (OKLab x 100) under
+ * simulated protanopia and deuteranopia, against 15 for full colour vision.
+ */
+export const bullet = (tone: Tone): string => (tone === 'good' ? G.yes : tone === 'warn' ? G.alert : tone === 'bad' ? G.no : G.dot);
+
+/**
  * An event or an answer: a bullet line saying what happened, then detail lines, the first after ⎿
- * and the rest under it. The bullet is ● in the tone given, or for 'faint' a faint · on a routine
+ * and the rest under it. The bullet is the tone's own (● ✓ ▲ ✗) in its colour, or for 'faint' a faint · on a routine
  * line, whose text is muted. The head is cut to the width, and so are details, unless `wrap`: then
  * they wrap under themselves, for reasons and errors, which stay in scrollback for good.
  */
 export function block(p: Paint, cols: number, head: string, detail: string[] = [], tone: Tone = 'ink', opts: { wrap?: boolean } = {}): string[] {
   const routine = tone === 'faint';
-  const out = [truncate(routine ? `${p.faint(G.sep)} ${p.muted(head)}` : `${p[tone](G.dot)} ${inked(p, head)}`, cols - 1)];
+  const out = [truncate(routine ? `${p.faint(G.sep)} ${p.muted(head)}` : `${p[tone](bullet(tone))} ${inked(p, head)}`, cols - 1)];
   const room = cols - 1 - indent();
   const lines = opts.wrap ? detail.flatMap((d) => wrapStyled(d, room)) : detail.map((d) => truncate(d, room));
   lines.forEach((d, i) => out.push((i === 0 ? `  ${p.faint(G.nest)} ` : ' '.repeat(indent())) + (routine ? p.faint(d) : inked(p, d))));

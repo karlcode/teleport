@@ -26,6 +26,8 @@ export interface Glyphs {
   back: string;
   yes: string;
   no: string;
+  /** An event that wants a look: with yes and no, an event's tone without its colour. */
+  alert: string;
   /** Unknown: the engine can't say. */
   none: string;
   /** Rounded box corners and edges: top-left, top-right, bottom-left, bottom-right, across, down. */
@@ -43,13 +45,13 @@ export interface Glyphs {
 
 export const UNICODE: Glyphs = {
   mark: '◎', dot: '●', ring: '○', sel: '›', nest: '⎿', sep: '·', bars: '▁▂▃▄▅▆▇█', spin: '⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏',
-  right: '→', left: '←', up: '↑', down: '↓', back: '⌫', yes: '✓', no: '✗', none: '–',
+  right: '→', left: '←', up: '↑', down: '↓', back: '⌫', yes: '✓', no: '✗', alert: '▲', none: '–',
   box: ['╭', '╮', '╰', '╯', '─', '│'], rule: '─', ellipsis: '…', tee: ['┬', '┴'], portal: '◌○◎◉◎○', beam: '━┈·✦✧',
 };
 
 export const ASCII: Glyphs = {
   mark: '@', dot: '*', ring: 'o', sel: '>', nest: '`-', sep: '-', bars: '_.-=+*#@', spin: '|/-\\',
-  right: '->', left: '<-', up: 'up', down: 'down', back: 'bksp', yes: '+', no: 'x', none: '-',
+  right: '->', left: '<-', up: 'up', down: 'down', back: 'bksp', yes: '+', no: 'x', alert: '!', none: '-',
   box: ['+', '+', '+', '+', '-', '|'], rule: '-', ellipsis: '...', tee: ['+', '+'], portal: '.oO@Oo', beam: '=-.*+',
 };
 
@@ -67,7 +69,7 @@ export const setGlyphs = (ascii: boolean) => void (G = ascii ? ASCII : UNICODE);
 
 // Each one-cell Unicode glyph and its ASCII stand-in. The spinner and the portal are left out: their frames don't pair up.
 const TO_ASCII = new Map<string, string>([
-  ...(['dot', 'ring', 'sel', 'nest', 'sep', 'right', 'left', 'up', 'down', 'back', 'yes', 'no', 'none', 'rule', 'ellipsis'] as const).map((k) => [UNICODE[k], ASCII[k]] as const),
+  ...(['dot', 'ring', 'sel', 'nest', 'sep', 'right', 'left', 'up', 'down', 'back', 'yes', 'no', 'alert', 'none', 'rule', 'ellipsis'] as const).map((k) => [UNICODE[k], ASCII[k]] as const),
   ...[...UNICODE.bars].map((ch, i) => [ch, ASCII.bars[i]!] as const),
   ...UNICODE.box.map((ch, i) => [ch, ASCII.box[i]!] as const),
   ...UNICODE.tee.map((ch, i) => [ch, ASCII.tee[i]!] as const),

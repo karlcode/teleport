@@ -561,7 +561,7 @@ describe('the events above the region', () => {
     duts.length = 0;
     h.con.event({ type: 'gone', id: 'ab12', waiting: true });
     vi.advanceTimersByTime(5000);
-    expect(h.printed().slice(2)).toEqual(['● ab12 went away', '  ⎿ DevTools waits a minute for it to come back']);
+    expect(h.printed().slice(2)).toEqual(['▲ ab12 went away', '  ⎿ DevTools waits a minute for it to come back']);
     // DevTools' wait counts down.
     expect(h.rows()[0]).toBe('  ○ ab12 Linux   gone 5 s   DevTools waits 55 s more');
     vi.advanceTimersByTime(55_000);
@@ -602,7 +602,7 @@ describe('the events above the region', () => {
     expect(h.rows()[0]).toMatch(/^ {2}○ ab12 .*reloading · back within 4 s$/);
     h.advance(5000);
     (h.con as unknown as { tick(): void }).tick();
-    expect(h.printed().at(-1)).toBe("● ab12 didn't come back 10 s after the reload");
+    expect(h.printed().at(-1)).toBe("✗ ab12 didn't come back 10 s after the reload");
   });
 
   it('says a page back after its link dropped, and DevTools coming and going', () => {
@@ -620,9 +620,9 @@ describe('the events above the region', () => {
       '  ⎿ the link dropped; same page, DevTools kept what it had',
       '· ab12 DevTools closed',
       "  ⎿ its console isn't recorded until DevTools opens again · d opens it",
-      '● ab12 inspector paused console, network and DOM watching',
+      '▲ ab12 inspector paused console, network and DOM watching',
       '  ⎿ the device is short of memory',
-      '● ab12 inspector back to full detail',
+      '✓ ab12 inspector back to full detail',
     ]);
   });
 
@@ -631,17 +631,17 @@ describe('the events above the region', () => {
     const h = harness(duts);
     h.sample();
     expect(h.printed()).toEqual([
-      '● p7m2d4cf main thread blocked 1.4 s',
+      '▲ p7m2d4cf main thread blocked 1.4 s',
       '  ⎿ long tasks 1380 ms · timer lag 1.21 s',
-      '● p7m2d4cf heap at 87% of its limit · 446 of 512 MB',
+      '✗ p7m2d4cf heap at 87% of its limit · 446 of 512 MB',
       '  ⎿ rising 2.1 MB/min from its floor: full in about 31 min',
-      '● p7m2d4cf key ↓ took 612 ms to the next frame',
+      '▲ p7m2d4cf key ↓ took 612 ms to the next frame',
       "  ⎿ 540 ms in the page's key handlers · focus landed on div.tile in #rail-trending",
     ]);
     duts[0]!.session.lastFrameAt += 9000;
     duts[0]!.session.points.push(point(109_000, { lagMs: 8900 }));
     h.sample();
-    expect(h.printed().slice(-2)).toEqual(['● p7m2d4cf stalled 9 s', "  ⎿ no samples, then timer lag 8.9 s: the page's main thread was blocked"]);
+    expect(h.printed().slice(-2)).toEqual(['▲ p7m2d4cf stalled 9 s', "  ⎿ no samples, then timer lag 8.9 s: the page's main thread was blocked"]);
   });
 
   it('says failed requests, one a minute per path and a few a burst, and never the ones that worked', () => {
@@ -653,14 +653,14 @@ describe('the events above the region', () => {
     req({});
     req({ url: `${HREF}api/rails?page=3` });
     req({ url: 'https://cdn.example.com/hero.avif', status: 0, failed: 'socket hang up' });
-    expect(h.printed()).toEqual(['● ab12 GET /api/rails?page=2 → 500 · 412 ms', '● ab12 GET https://cdn.example.com/hero.avif failed · socket hang up · 412 ms']);
+    expect(h.printed()).toEqual(['✗ ab12 GET /api/rails?page=2 → 500 · 412 ms', '✗ ab12 GET https://cdn.example.com/hero.avif failed · socket hang up · 412 ms']);
     for (const n of [1, 2, 3, 4]) req({ url: `${HREF}img/${n}.jpg`, status: 404 });
-    expect(h.printed().slice(2)).toEqual(['● ab12 GET /img/1.jpg → 404 · 412 ms', '● ab12 more requests failed · n lists them']);
+    expect(h.printed().slice(2)).toEqual(['✗ ab12 GET /img/1.jpg → 404 · 412 ms', '✗ ab12 more requests failed · n lists them']);
     req({ id: 'cd34' });
-    expect(h.printed().at(-1)).toBe('● cd34 GET /api/rails?page=2 → 500 · 412 ms');
+    expect(h.printed().at(-1)).toBe('✗ cd34 GET /api/rails?page=2 → 500 · 412 ms');
     h.advance(61_000);
     req({});
-    expect(h.printed().at(-1)).toBe('● ab12 GET /api/rails?page=2 → 500 · 412 ms · 1 more since 14:02:11');
+    expect(h.printed().at(-1)).toBe('✗ ab12 GET /api/rails?page=2 → 500 · 412 ms · 1 more since 14:02:11');
   });
 
   it('says a page that loaded with no agent connecting, once per address', () => {
@@ -671,7 +671,7 @@ describe('the events above the region', () => {
     vi.advanceTimersByTime(16_000);
     load();
     vi.advanceTimersByTime(16_000);
-    expect(h.printed()).toEqual(['● 192.168.1.31 loaded / 15 s ago, but no agent connected', "  ⎿ a firewall on port 7070, or the page's content security policy, may block it"]);
+    expect(h.printed()).toEqual(['▲ 192.168.1.31 loaded / 15 s ago, but no agent connected', "  ⎿ a firewall on port 7070, or the page's content security policy, may block it"]);
   });
 
   it('says the same thing again as one line with a count, and never loses a line that says more', () => {
@@ -686,7 +686,7 @@ describe('the events above the region', () => {
     expect(h.printed()).toEqual(['· mcp probe focus on ab12 · 1 ms ×4', '· mcp keys right on ab12 · 300 ms', '· mcp probe focus on ab12 · 1 ms']);
     // A failure is its own line, and so is a line whose detail differs.
     h.con.event({ type: 'call', id: 'ab12', by: 'mcp', what: 'probe focus', phase: 'end', ms: 1, error: 'the page went away' });
-    expect(h.printed().slice(-2)).toEqual(['● mcp probe focus on ab12 failed · 1 ms', '  ⎿ the page went away']);
+    expect(h.printed().slice(-2)).toEqual(['✗ mcp probe focus on ab12 failed · 1 ms', '  ⎿ the page went away']);
     // An answer printed in between starts a new count.
     for (let i = 0; i < 2; i++) h.con.event({ type: 'page', id: 'ab12', kind: 'reload', href: HREF, ua: ARM, ip: '192.168.1.42' });
     expect(h.printed().at(-1)).toBe('· ab12 reloaded ×2');
@@ -718,7 +718,7 @@ describe('the events above the region', () => {
     h.con.event({ type: 'call', id: 'k3x9q2ab', by: 'q', what: 'eval foo()', phase: 'end', ms: 15_000, error: 'eval: ReferenceError: foo is not defined' });
     h.con.event({ type: 'call', id: 'k3x9q2ab', by: 'other', what: 'keys right', phase: 'end', ms: 80 });
     h.con.event({ type: 'call', id: 'k3x9q2ab', by: 'console', what: 'capture 10 s', phase: 'end', ms: 11_500 });
-    expect(h.printed()).toEqual(['· mcp probe media on k3x9q2ab · 420 ms', '● q eval foo() on k3x9q2ab failed · 15 s', '  ⎿ eval: ReferenceError: foo is not defined', '· API keys right on k3x9q2ab · 80 ms']);
+    expect(h.printed()).toEqual(['· mcp probe media on k3x9q2ab · 420 ms', '✗ q eval foo() on k3x9q2ab failed · 15 s', '  ⎿ eval: ReferenceError: foo is not defined', '· API keys right on k3x9q2ab · 80 ms']);
     expect(h.list().some((l) => /[◌○◎◉]$/.test(l))).toBe(false);
   });
 
@@ -754,19 +754,19 @@ describe('the events above the region', () => {
     h.con.note({ type: 'app', app: 'app.exmaple.com', up: false, why: 'getaddrinfo ENOTFOUND app.exmaple.com' });
     expect(h.printed()).toEqual([
       '· agent rebuilt · reloading 2 devices',
-      '● server build failed',
+      '✗ server build failed',
       '  ⎿ src/x.ts(3,1): error TS1005',
       '· https://x.tunnel.app goes through tlpt while it runs',
-      '● the tunnel kept https://x.tunnel.app on your app',
+      '▲ the tunnel kept https://x.tunnel.app on your app',
       '  ⎿ open the device link above, or point the tunnel at 127.0.0.1:7070',
       '· an older tlpt on port 7070 stepped aside',
       '· https://x.tunnel-free.app goes through tlpt while it runs',
       '  ⎿ the tunnel shows the device its warning page once: press Visit Site, or open',
       '    http://192.168.1.20:7070/ on this network',
-      '● nothing answers at localhost:5173 yet',
+      '▲ nothing answers at localhost:5173 yet',
       '  ⎿ start your app; the device waits for it and opens it once it answers',
-      '● localhost:5173 answers now',
-      "● app.exmaple.com doesn't answer",
+      '✓ localhost:5173 answers now',
+      "✗ app.exmaple.com doesn't answer",
       '  ⎿ getaddrinfo ENOTFOUND app.exmaple.com',
     ]);
   });
@@ -796,14 +796,14 @@ describe('what the page threw', () => {
     const h = harness([dut('ab12')]);
     error(h, 0);
     expect(h.printed()).toEqual([
-      '● ab12 threw SyntaxError: Unexpected token => · app.js:3:9 · 840 ms into the page',
+      '✗ ab12 threw SyntaxError: Unexpected token => · app.js:3:9 · 840 ms into the page',
       '  ⎿ var go = () => 1;',
       '    ---------^',
       '    The engine could not parse this file, so none of it ran.',
     ]);
     for (const n of [1, 2]) error(h, n);
     // The same error thrown again is the same line, counted.
-    expect(h.printed().filter((l) => l.startsWith('● ab12 threw '))).toEqual(['● ab12 threw SyntaxError: Unexpected token => · app.js:3:9 · 840 ms into the page ×3']);
+    expect(h.printed().filter((l) => l.startsWith('✗ ab12 threw '))).toEqual(['✗ ab12 threw SyntaxError: Unexpected token => · app.js:3:9 · 840 ms into the page ×3']);
     const before = h.printed().length;
     for (const n of [3, 4, 20]) error(h, n);
     expect(h.printed()).toHaveLength(before);
@@ -813,8 +813,8 @@ describe('what the page threw', () => {
     const h = harness([dut('ab12')]);
     error(h, 0, { kind: 'resource', text: 'script', src: 'http://192.168.1.20:7070/vendor.js', line: 0, col: 0, near: null, hint: 'Nothing this script defines exists.' });
     error(h, 1, { kind: 'rejection', text: 'Uncaught undefined is not a function', hint: null, near: null });
-    expect(h.printed()[0]).toMatch(/^● ab12 script did not load: http:\/\/192\.168\.1\.20:7070\/vendor\.js · /);
-    expect(h.printed().find((l) => l.startsWith('● ab12 threw '))).toContain('unhandled rejection: undefined is not a function');
+    expect(h.printed()[0]).toMatch(/^✗ ab12 script did not load: http:\/\/192\.168\.1\.20:7070\/vendor\.js · /);
+    expect(h.printed().find((l) => l.startsWith('✗ ab12 threw '))).toContain('unhandled rejection: undefined is not a function');
   });
 
   it('counts a page that keeps throwing, once a minute per device and only past 3', () => {
@@ -826,15 +826,15 @@ describe('what the page threw', () => {
     expect(h.printed()).toEqual([]);
     h.advance(61_000);
     count('ab12', 9);
-    expect(h.printed()).toEqual(['● ab12 has thrown 9 errors', '  ⎿ e lists the first and the last of them']);
+    expect(h.printed()).toEqual(['✗ ab12 has thrown 9 errors', '  ⎿ e lists the first and the last of them']);
     h.advance(30_000);
     count('ab12', 30);
     expect(h.printed()).toHaveLength(2);
     count('cd34', 8);
-    expect(h.printed().at(-2)).toMatch(/^● cd34 has thrown 8 errors/);
+    expect(h.printed().at(-2)).toMatch(/^✗ cd34 has thrown 8 errors/);
     h.advance(31_000);
     count('ab12', 40);
-    expect(h.printed().filter((l) => l.startsWith('● ab12 has thrown'))).toEqual(['● ab12 has thrown 9 errors', '● ab12 has thrown 40 errors']);
+    expect(h.printed().filter((l) => l.startsWith('✗ ab12 has thrown'))).toEqual(['✗ ab12 has thrown 9 errors', '✗ ab12 has thrown 40 errors']);
   });
 
   it('starts counting afresh when the page loads again', () => {
@@ -852,10 +852,10 @@ describe('what the page threw', () => {
     h.con.event({ type: 'dropped', id: 'ab12', console: 1, network: 12 });
     h.con.event({ type: 'dropped', id: 'ab12', console: 0, network: 1 });
     expect(h.printed()).toEqual([
-      '● ab12 inspector left out 1 console message and 12 network events',
+      '▲ ab12 inspector left out 1 console message and 12 network events',
       '  ⎿ The device was too busy or its link too full to report them. What the page threw is not among',
       '    them: errors are kept.',
-      '● ab12 inspector left out 1 network event',
+      '▲ ab12 inspector left out 1 network event',
       '  ⎿ The device was too busy or its link too full to report them. What the page threw is not among',
       '    them: errors are kept.',
     ]);
@@ -1086,7 +1086,7 @@ describe('the keys', () => {
     expect(calls()[0]!.slice(1, 2)).toEqual([{ seconds: 60 }]);
     fail(new Error('the page went away'));
     await settle();
-    expect(h.printed().slice(1)).toEqual(['● /device --seconds 60 on ab12 failed', '  ⎿ the page went away']);
+    expect(h.printed().slice(1)).toEqual(['✗ /device --seconds 60 on ab12 failed', '  ⎿ the page went away']);
     expect(h.at()).toBe('device');
     // The device's last minute is shown live; the run that failed is listed above it, with why.
     expect(h.side()[2]).toBe('14:02 ✗ device --seconds 60 · 0 ms · the page went away');
@@ -1222,7 +1222,7 @@ describe('the keys', () => {
     h.hot('r');
     h.key('up');
     await settle();
-    expect(h.printed()).toEqual(['● remote on ab12 failed', '  ⎿ nothing matches #menu']);
+    expect(h.printed()).toEqual(['✗ remote on ab12 failed', '  ⎿ nothing matches #menu']);
   });
 
   it("stops the console's own trial on esc esc, after its current run", async () => {
@@ -1728,8 +1728,8 @@ describe('the palette', () => {
     h.type('probe media');
     h.key('return');
     await settle();
-    expect(h.printed().slice(-2)).toEqual(['● /probe media on cd34 failed', '  ⎿ the page went away']);
-    expect(h.side().slice(-2)).toEqual(['● /probe media on cd34 failed', '    the page went away']);
+    expect(h.printed().slice(-2)).toEqual(['✗ /probe media on cd34 failed', '  ⎿ the page went away']);
+    expect(h.side().slice(-2)).toEqual(['✗ /probe media on cd34 failed', '    the page went away']);
   });
 
   it('will not start a capture or a trial on a device where one already runs', () => {

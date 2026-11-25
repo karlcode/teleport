@@ -188,9 +188,9 @@ while something else is open on the right.
   open on the device  http://192.168.1.20:7070/
   devices             ● k3x9q2ab live  Linux · Chrome 63  1920×1080 · 4 cores · heap 512 MB  192.168.1.42
                       ● p7m2d4cf quiet 4 s  Android · Chrome 53  1280×720 · heap 512 MB  192.168.1.43
-● k3x9q2ab connected · Linux · Chrome 63 · 192.168.1.42
+✓ k3x9q2ab connected · Linux · Chrome 63 · 192.168.1.42
   ⎿ DevTools opening in your browser · http://localhost:7070/__teleport/Kq3xT9b2Lm/d/k3x9q2ab
-● p7m2d4cf key ↓ took 612 ms to the next frame
+▲ p7m2d4cf key ↓ took 612 ms to the next frame
   ⎿ 540 ms in the page's key handlers · focus landed on div.tile in #rail-trending
 ───────────────────────────────┬───────────────────────────────────────────────────────────────────
   measure                      │ capture  fps and key → frame                           on k3x9q2ab
@@ -225,6 +225,11 @@ What the right side shows of each entry:
 | `errors`, `network`, `device`, `devices`, `history` | Their answers, read again every 2 s while highlighted. They cost the device nothing: the laptop has it all. |
 | `devtools`, `reload` | Each device: DevTools open or closed with its link; the page each has open. |
 | the rest | Their runs this session and the last answer. |
+
+**Each line in the log** starts with a mark that is its tone in a shape as well as a colour, so it
+reads with `NO_COLOR` and to someone who sees red and green alike: `✓` (green) something came or got
+better, `▲` (amber) something wants a look, `✗` (red) something failed, `●` anything else, and a
+faint `·` for the routine.
 
 **Each device's row** updates as its samples arrive, about once a second. All of it is data the laptop
 already has, so watching costs the device nothing. Colour means something only when it appears: amber

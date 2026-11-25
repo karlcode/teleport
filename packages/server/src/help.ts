@@ -81,7 +81,6 @@ export function mainHelp(): HelpDoc {
           ['TELEPORT_PORT', 'the port commands and mcp ask, if not 7070'],
           // Names the Unicode glyphs on purpose, whichever set is in use: they are what it replaces.
           ['NO_COLOR, TLPT_ASCII=1', 'no colour; ASCII in place of ● ⎿ ▁▂▃ and arrows'],
-          ['TLPT_THEME=light', 'or dark, when tlpt reads the terminal\'s background wrong'],
           ['NODE_EXTRA_CA_CERTS', 'a root to trust when your network re-signs https'],
           ['TELEPORT_JOURNAL=0', 'keep no journal of experiments on this machine'],
         ],
