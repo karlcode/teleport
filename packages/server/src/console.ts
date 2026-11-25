@@ -727,6 +727,8 @@ export class Console {
   private noAgent = new Set<string>();
   /** A page has reached tlpt: a page load through it, or an agent. */
   private reached = false;
+  /** A key has been pressed in this console: from then on the highlight is the person's, and nothing moves it for them. */
+  private touched = false;
   private readonly started: number;
   // The palette.
   private input = '';
@@ -820,6 +822,10 @@ export class Console {
         const asked = (due ?? 0) > now;
         this.reloads.delete(e.id);
         if (!this.specs.has(e.ua)) setTimeout(() => void this.askSpecs(e.id), SPECS_AFTER_MS).unref?.();
+        // What a person does first with a device that has just connected is drive it to the screen
+        // they came to look at, so that is what Enter does. Only while the highlight is still where
+        // the console put it: once a key has been pressed it is theirs.
+        if (e.kind === 'new' && !this.touched && this.agents.size === 1 && this.o.screen.interactive) this.at = 'remote';
         if (e.kind === 'new') this.connected(e);
         else if (e.kind === 'reload' && due !== undefined) this.say('routine', `${id(e.id)} reloaded in ${dur(Math.max(0, now - (due - RELOAD_ASKED_MS)))}`);
         else if (e.kind === 'reload') this.say('routine', `${id(e.id)} reloaded`, heap && heap.mb / heap.limit >= HEAP_ALARM && !asked ? [`its heap was at ${pct(heap.mb / heap.limit)} of the limit just before: the engine may have ended the page`] : []);
@@ -1188,7 +1194,8 @@ export class Console {
   private keysNow(remote: boolean, duts: number): [string, string][] {
     if (remote) return [['arrows', 'move'], ['enter', 'ok'], [G.back, 'back'], ['0-9', 'digits'], ['c', 'capture'], ['m', 'map a key'], ['esc', 'leave']];
     if (this.input) return [['enter', 'run'], ['tab', 'complete'], [ud(), 'pick'], ['esc', 'clear']];
-    const letters = ['capture', 'try', 'remote', 'devtools', 'survey', 'probe', 'errors', 'network', 'history'].map((n) => entry(n)).filter((e): e is Entry => !!e?.key);
+    // In the order a session goes: drive it there, measure, change one thing, then look closer.
+    const letters = ['remote', 'capture', 'try', 'errors', 'devtools', 'survey', 'probe', 'network', 'history'].map((n) => entry(n)).filter((e): e is Entry => !!e?.key);
     return [[ud(), 'move'], ['enter', 'open'], ...letters.map((e): [string, string] => [e.key!, e.name]), ...(duts > 1 ? ([['tab', 'device']] as [string, string][]) : []), ['?', 'help'], ['^C', 'quit']];
   }
 
@@ -1703,6 +1710,7 @@ export class Console {
   key(k: Key) {
     if (this.closed) return;
     const now = this.now();
+    this.touched = true;
     // Another device where remote mode's was (it went away) ends the mode, so no press goes to a device not
     // chosen. While its device is between pages (a reload, a link) the mode waits for it.
     const on = this.target();

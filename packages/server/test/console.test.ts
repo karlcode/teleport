@@ -232,9 +232,39 @@ function mockupDuts() {
 }
 
 describe('the live region', () => {
+  it('highlights the remote when the first device connects, unless a key was pressed first', () => {
+    // What a person does first with a device is drive it to the screen they came to look at.
+    const h = harness([dut('ab12')], { rows: 40 });
+    expect(h.at()).toBe('capture');
+    h.connect(h.duts[0]!);
+    h.sample();
+    expect(h.at()).toBe('remote');
+    expect(info(h)).toBe('  > _  enter drives the device');
+    // The group it is in is the one open, with the others closed around it.
+    expect(h.list().filter(Boolean)).toContain('  › r remote');
+    h.key('return');
+    expect(h.keys()).toMatch(/^ {2}arrows move {3}enter ok/);
+    // The highlight is the person's once they have pressed a key: a second device, or the first one back, moves nothing.
+    const mine = harness([dut('ab12'), dut('cd34')], { rows: 40 });
+    mine.key('down');
+    mine.duts.forEach(mine.connect);
+    expect(mine.at()).toBe('survey');
+    const two = harness([dut('ab12'), dut('cd34')], { rows: 40 });
+    two.connect(two.duts[0]!);
+    two.key('up');
+    two.connect(two.duts[1]!);
+    expect(two.at()).not.toBe('remote');
+    // Piped, there is no highlight to move.
+    const piped = harness([dut('ab12')], { interactive: false });
+    piped.connect(piped.duts[0]!);
+    expect(piped.at()).toBe('capture');
+  });
+
   it('draws the mockup at 100 columns: the groups on the left, the first open, the highlighted entry on the right, a row per device, the input', () => {
     const duts = mockupDuts();
     const h = harness(duts, { rows: 40 });
+    // A key pressed before the device came: the highlight stays where it was (see 'highlights the remote').
+    h.key('escape');
     duts.forEach(h.connect);
     h.sample();
     const live = h.live();
@@ -267,11 +297,12 @@ describe('the live region', () => {
 
   it('keeps every group open on a tall terminal, and names the keys that act on the last line', () => {
     const h = harness([dut('ab12')], { rows: 50 });
+    h.key('escape');
     h.connect(h.duts[0]!);
     h.sample();
     // Nothing waits behind a closed group: every entry is on screen with its letter.
     expect(h.list().filter(Boolean).map((l) => l.trim().replace(/^› /, ''))).toEqual(GROUPS.flatMap((g) => [g.id, ...MENU.filter((e) => e.group === g.id).map((e) => (e.key ? `${e.key} ${e.name}` : e.name))]));
-    expect(h.keys()).toBe('  ↑↓ move   enter open   c capture   t try   r remote   d devtools   s survey   ? help   ^C quit');
+    expect(h.keys()).toBe('  ↑↓ move   enter open   r remote   c capture   t try   e errors   d devtools   ? help   ^C quit');
     // The arrows go on through every group's entries.
     for (let i = 0; i < 7; i++) h.key('down');
     expect(h.at()).toBe('experiment');
@@ -285,7 +316,7 @@ describe('the live region', () => {
     expect(h.keys()).toBe('  arrows move   enter ok   ⌫ back   0-9 digits   c capture   m map a key   esc leave');
     // A narrow terminal keeps the first keys, and help and quit; a short one gives the line to the list.
     const narrow = harness([dut('ab12')], { cols: 60 });
-    expect(narrow.keys()).toBe('  ↑↓ move   enter open   c capture   ? help   ^C quit');
+    expect(narrow.keys()).toBe('  ↑↓ move   enter open   r remote   ? help   ^C quit');
     expect(harness([dut('ab12')], { rows: 16 }).keys()).toBe('');
     // On a plate where there is colour.
     expect(harness([dut('ab12')], { color: 'truecolor' }).raw().length).toBeGreaterThan(0);
@@ -320,6 +351,7 @@ describe('the live region', () => {
   it('keeps the wide row for 100 columns: below, 8 bars, no platform and 2-space gaps leave room for key and the alerts', () => {
     const duts = mockupDuts();
     const h80 = harness(duts, { cols: 80 });
+    h80.key('escape');
     duts.forEach(h80.connect);
     h80.sample();
     expect(h80.rows()[0]).toMatch(/^› ● k3x9q2ab {2}main .{8} {3}0 ms {2}heap 212\/512 MB {2}key ↓ 41 ms {2}DevTools$/);
@@ -329,6 +361,7 @@ describe('the live region', () => {
     expect(h80.side()).toContainEqual(expect.stringMatching(/^main {5}main thread blocked/));
     // Narrower, the list drops its group labels and the input its help hint.
     const h60 = harness(duts, { cols: 60 });
+    h60.key('escape');
     duts.forEach(h60.connect);
     h60.sample();
     const [a, b, bar] = h60.rows();
@@ -441,6 +474,7 @@ describe('the live region', () => {
     try {
       const duts = [dut('ab12', { devtools: 2 }), dut('cd34')];
       const h = harness(duts);
+      h.key('escape');
       duts.forEach(h.connect);
       h.sample();
       expect(h.live()[0]).toBe('-'.repeat(31) + '+' + '-'.repeat(67));

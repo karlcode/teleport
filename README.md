@@ -23,7 +23,7 @@ Or just `tlpt`: it finds a dev server on a common port, or waits until you type 
 
 Open that address on the device. When it connects, Chrome DevTools opens on your laptop, and the
 terminal shows the device: a card at the top (its state, engine, screen and cores) and its main
-thread, memory and key response live at the bottom.
+thread, memory and key response live at the bottom. Press Enter and your keyboard is its remote.
 
 Everything else is typed on the last line, which is always open:
 

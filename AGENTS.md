@@ -173,9 +173,13 @@ from top to bottom:
   costs. The list scrolls with the highlight on a short terminal, and drops what each shows below
   80 columns.
 - **The device rows**, one per device, under the columns.
-- **The input**, always open, with what Enter does next on the right.
+- **The input**, always open, with what Enter does next on the right. When the first device
+  connects the highlight moves to `remote`, so Enter drives it: driving the device to the screen
+  you came to look at is what comes first. Once a key has been pressed the highlight is yours, and
+  nothing moves it.
 - **The keys**, on the last line: the ones that act now, each on a plate with a word for what it
-  does. With nothing typed they are the list's and the letters most used; while a line is typed,
+  does. With nothing typed they are the list's and the letters most used, in the order a session
+  goes (remote, capture, try, errors, DevTools); while a line is typed,
   the input's; in remote mode, the remote's. A narrow terminal keeps the first of them and `?`
   and `^C`; under 20 rows the line is left out.
 
