@@ -496,7 +496,7 @@ function keyLine(keys: [string, string][], w: number, s: ViewState): string {
 function emptyBlock(s: ViewState, w: number, h: number): string[] {
   const { p } = s;
   const { tone, what, how } = waitingSays(s);
-  const keys: [string, string][] = [...(s.waiting.appless ? ([['5173', "your app's port"]] as [string, string][]) : []), ['?', 'keys'], ['h', 'history']];
+  const keys: [string, string][] = [...(s.waiting.appless ? ([['5173', "your app's port"]] as [string, string][]) : []), ['?', 'help'], ['h', 'history']];
   // Too long for the side (the line to add to an app): what to do, then the line itself under it.
   const hows = width(how) > w && how.includes(': ') ? [how.slice(0, how.indexOf(': ') + 1), how.slice(how.indexOf(': ') + 2)] : [how];
   const lines = [tone(G.ring), '', p.bold(tone(what)), ...hows, '', keys.map(([k, l]) => chip(s, k, l)).join('   ')];
@@ -1189,7 +1189,7 @@ export class Console {
     if (remote) return [['arrows', 'move'], ['enter', 'ok'], [G.back, 'back'], ['0-9', 'digits'], ['c', 'capture'], ['m', 'map a key'], ['esc', 'leave']];
     if (this.input) return [['enter', 'run'], ['tab', 'complete'], [ud(), 'pick'], ['esc', 'clear']];
     const letters = ['capture', 'try', 'remote', 'devtools', 'survey', 'probe', 'errors', 'network', 'history'].map((n) => entry(n)).filter((e): e is Entry => !!e?.key);
-    return [[ud(), 'move'], ['enter', 'open'], ...letters.map((e): [string, string] => [e.key!, e.name]), ...(duts > 1 ? ([['tab', 'device']] as [string, string][]) : []), ['?', 'keys'], ['^C', 'quit']];
+    return [[ud(), 'move'], ['enter', 'open'], ...letters.map((e): [string, string] => [e.key!, e.name]), ...(duts > 1 ? ([['tab', 'device']] as [string, string][]) : []), ['?', 'help'], ['^C', 'quit']];
   }
 
   /** The terminal has the rows for every group to stay open, so nothing waits behind a closed one. */
@@ -1281,14 +1281,11 @@ export class Console {
 
   private inputView(sug: Suggestions, target: DutSource | undefined, at: string): InputView {
     const typed = !!this.input;
-    const wide = this.o.screen.cols >= 80;
     // A port, an address or a folder typed: Enter serves it, which says so before it is pressed.
     const app = typed && this.o.connect && isApp(this.input) ? `enter serves ${appName(this.input)} to the device` : null;
-    const hint = app
-      ? [app, 'esc cancel']
-      : typed
-      ? [!this.taken(sug)?.waits ? 'enter run' : 'enter choose', ...(wide ? ['tab complete'] : []), 'esc cancel']
-      : [`${ud()} pick`, enterSays(at), ...(wide ? ['? help'] : [])];
+    // What Enter does now, and nothing else: it is the one thing on this line that changes with what
+    // is typed or highlighted. The keys that don't change are on the line under it, once.
+    const hint = app ? [app] : typed ? [!this.taken(sug)?.waits ? 'enter runs it' : 'enter lists what it takes'] : [enterSays(at)];
     const silent = target?.session.lastFrameAt ? this.now() - target.session.lastFrameAt : 0;
     const tone = !target ? undefined : silent >= DEAD_MS ? 'bad' : silent >= SILENT_MS || this.reloads.has(target.id) ? 'warn' : 'good';
     return { text: this.input, caret: this.caret, error: this.error, hint: hint.join(sp()), on: /(?:^|\s)--id\s+(\S+)/.exec(this.input)?.[1] ?? target?.id ?? null, tone };
@@ -1329,7 +1326,7 @@ export class Console {
       const left = lines.length - top - (room - 1);
       return [...out, ...lines.slice(top, top + room - 1), p.faint(left > 0 ? `${G.down} ${left} more line${left === 1 ? '' : 's'}${sp()}page down` : `${G.up} page up`)];
     }
-    if (out.length === 1) out.push('', p.faint(`nothing yet${sp()}${enterSays(e.name)}${sp()}? about`));
+    if (out.length === 1) out.push('', p.faint(`nothing yet${sp()}${enterSays(e.name)}${sp()}? help`));
     return out.slice(0, h).map((l) => truncate(l, w));
   }
 

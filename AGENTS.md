@@ -188,7 +188,7 @@ while something else is open on the right.
   open on the device  http://192.168.1.20:7070/
   devices             ● k3x9q2ab live  Linux · Chrome 63  1920×1080 · 4 cores · heap 512 MB  192.168.1.42
                       ● p7m2d4cf quiet 4 s  Android · Chrome 53  1280×720 · heap 512 MB  192.168.1.43
-✓ k3x9q2ab connected · Linux · Chrome 63 · 192.168.1.42
+● k3x9q2ab connected · Linux · Chrome 63 · 192.168.1.42
   ⎿ DevTools opening in your browser · http://localhost:7070/__teleport/Kq3xT9b2Lm/d/k3x9q2ab
 ▲ p7m2d4cf key ↓ took 612 ms to the next frame
   ⎿ 540 ms in the page's key handlers · focus landed on div.tile in #rail-trending
@@ -208,7 +208,7 @@ while something else is open on the right.
 ───────────────────────────────┴───────────────────────────────────────────────────────────────────
 › ● k3x9q2ab Linux     main ▁▁▂▁▁▁▁▁▁▃▁▁▁▁▁▁   0 ms   heap 212/512 MB   key ↓ 41 ms   DevTools
   ● p7m2d4cf Android   main ▃▅█▆▂▇█▅▃▆█▇▅▆█▇ 640 ms   heap 446/512 MB   2 errors   key ↓ 180 ms
-  > ▏  ↑↓ pick · enter captures 10 s · ? help                                      on ● k3x9q2ab
+  > ▏  enter captures 10 s                                                        on ● k3x9q2ab
 ```
 
 A notice (`a capture is running on k3x9q2ab`) shows on the input's line for a moment. Quitting is

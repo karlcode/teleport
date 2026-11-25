@@ -212,7 +212,7 @@ const sides = (lines: string[]) => {
 const info = (h: ReturnType<typeof harness>) => h.rows().at(-1)!.replace(/ {3,}(on (?:[●*] )?\S+|(?:[○o] )?no device yet)$/, '');
 
 /** The input at 100 columns with nothing typed and capture highlighted. */
-const BAR = '  > _  ↑↓ pick · enter captures 10 s · ? help';
+const BAR = '  > _  enter captures 10 s';
 
 /** With no device, the middle of the right side: what is waited for, and what to do. */
 const waiting = (h: ReturnType<typeof harness>) => h.side().map((l) => l.trim()).filter(Boolean).slice(1, 3).join('   ');
@@ -261,7 +261,7 @@ describe('the live region', () => {
     // The engine is the first cell to go: the row would be 105 wide with it.
     expect(a).toMatch(/^› ● k3x9q2ab Linux {3}main .{16} {3}0 ms {3}heap 212\/512 MB {3}key ↓ 41 ms {3}DevTools$/);
     expect(b).toMatch(/^ {2}● p7m2d4cf Linux {3}main .{16} 640 ms {3}heap 446\/512 MB {3}full in 31 min {3}key ↓ 180 ms$/);
-    expect(foot).toMatch(/^ {2}> _ {2}↑↓ pick · enter captures 10 s · \? help +on ● k3x9q2ab$/);
+    expect(foot).toMatch(/^ {2}> _ {2}enter captures 10 s +on ● k3x9q2ab$/);
     expect(h.rows()).toHaveLength(3);
   });
 
@@ -271,7 +271,7 @@ describe('the live region', () => {
     h.sample();
     // Nothing waits behind a closed group: every entry is on screen with its letter.
     expect(h.list().filter(Boolean).map((l) => l.trim().replace(/^› /, ''))).toEqual(GROUPS.flatMap((g) => [g.id, ...MENU.filter((e) => e.group === g.id).map((e) => (e.key ? `${e.key} ${e.name}` : e.name))]));
-    expect(h.keys()).toBe('  ↑↓ move   enter open   c capture   t try   r remote   d devtools   s survey   ? keys   ^C quit');
+    expect(h.keys()).toBe('  ↑↓ move   enter open   c capture   t try   r remote   d devtools   s survey   ? help   ^C quit');
     // The arrows go on through every group's entries.
     for (let i = 0; i < 7; i++) h.key('down');
     expect(h.at()).toBe('experiment');
@@ -285,7 +285,7 @@ describe('the live region', () => {
     expect(h.keys()).toBe('  arrows move   enter ok   ⌫ back   0-9 digits   c capture   m map a key   esc leave');
     // A narrow terminal keeps the first keys, and help and quit; a short one gives the line to the list.
     const narrow = harness([dut('ab12')], { cols: 60 });
-    expect(narrow.keys()).toBe('  ↑↓ move   enter open   c capture   ? keys   ^C quit');
+    expect(narrow.keys()).toBe('  ↑↓ move   enter open   c capture   ? help   ^C quit');
     expect(harness([dut('ab12')], { rows: 16 }).keys()).toBe('');
     // On a plate where there is colour.
     expect(harness([dut('ab12')], { color: 'truecolor' }).raw().length).toBeGreaterThan(0);
@@ -293,7 +293,7 @@ describe('the live region', () => {
 
   it('says how to get a device in the middle of the right side until one connects', () => {
     const h = harness();
-    expect(h.side().filter(Boolean).map((l) => l.trim())).toEqual(['○', 'waiting for a device', 'open http://192.168.1.20:7070/ on it', '? keys   h history']);
+    expect(h.side().filter(Boolean).map((l) => l.trim())).toEqual(['○', 'waiting for a device', 'open http://192.168.1.20:7070/ on it', '? help   h history']);
     // Centred in the side.
     const line = sides(body(h.raw())).map((l) => l.right).find((l) => l.includes('waiting'))!;
     expect(Math.abs(line.length - line.trimStart().length - (67 - 'waiting for a device'.length) / 2)).toBeLessThan(1.5);
@@ -334,7 +334,7 @@ describe('the live region', () => {
     const [a, b, bar] = h60.rows();
     expect(a).toMatch(/^› ● k3x9q2ab {2}main .{8} {3}0 ms {2}heap 212\/512 MB$/);
     expect(b).toMatch(/^ {2}● p7m2d4cf {2}main .{8} 640 ms {2}heap 446\/512 MB$/);
-    expect(bar).toMatch(/^ {2}> _ {2}↑↓ pick · enter captures 10 s/);
+    expect(bar).toMatch(/^ {2}> _ {2}enter captures 10 s/);
     expect(h60.list().slice(0, 2)).toEqual(['  measure', ' › c capture']);
   });
 
@@ -446,7 +446,7 @@ describe('the live region', () => {
       expect(h.live()[0]).toBe('-'.repeat(31) + '+' + '-'.repeat(67));
       expect(h.list().slice(0, 2)).toEqual(['  measure', '  > c capture']);
       expect(h.rows()[0]).toMatch(/^> \* ab12 Linux {3}main .* {3}DevTools x2 {3}Chrome 63$/);
-      expect(info(h)).toBe('  > _  up/down pick - enter captures 10 s - ? help');
+      expect(info(h)).toBe('  > _  enter captures 10 s');
       expect(h.printed()[0]).toBe('* ab12 connected - Linux - Chrome 63 - 192.168.1.42');
       // The ? side's key column fits 'up/down'.
       h.type('?');
@@ -1135,7 +1135,7 @@ describe('the keys', () => {
     expect(h.side()).toContain('sent   ↓ ok 5 back');
     expect(h.side().at(-1)).toBe('sends  ok Enter 13');
     h.key('escape');
-    expect(info(h)).toBe('  > _  ↑↓ pick · enter drives the device · ? help');
+    expect(info(h)).toBe('  > _  enter drives the device');
   });
 
   it("names what the page heard in remote mode, the device's own presses too, and says a key it learned", async () => {
@@ -1213,7 +1213,7 @@ describe('the keys', () => {
     vi.advanceTimersByTime(6000);
     duts.push(cd34);
     h.con.event({ type: 'page', id: 'cd34', kind: 'new', href: HREF, ua: ARM, ip: '192.168.1.42' });
-    expect(info(h)).toBe('  > _  ↑↓ pick · enter drives the device · ? help');
+    expect(info(h)).toBe('  > _  enter drives the device');
   });
 
   it('says when a remote press failed', async () => {
@@ -1416,11 +1416,11 @@ describe('the palette', () => {
   it('shows the keys on the input line, with the device at the right when it fits', () => {
     const h = harness([dut('ab12')]);
     h.type('xyz');
-    expect(info(h)).toMatch(/^ {2}> xyz_ {2}enter (run|choose) · tab complete · esc cancel$/);
+    expect(info(h)).toMatch(/^ {2}> xyz_ {2}enter (runs it|lists what it takes)$/);
     expect(h.rows().at(-1)).toMatch(/ on ● ab12$/);
     const narrow = harness([dut('ab12')], { cols: 60 });
     narrow.type('xyz');
-    expect(info(narrow)).toBe('  > xyz_  enter run · esc cancel');
+    expect(info(narrow)).toBe('  > xyz_  enter runs it');
     const none = harness();
     none.type('xyz');
     expect(none.rows().at(-1)).toMatch(/no device yet$/);
@@ -1677,7 +1677,7 @@ describe('the palette', () => {
     h.ctrl('c');
     expect(box(h)).toBe('_');
     h.key('backspace');
-    expect(info(h)).toBe("  > _  ↑↓ pick · enter picks a probe · ? help");
+    expect(info(h)).toBe("  > _  enter picks a probe");
     h.paste('x'.repeat(5000));
     h.key('end');
     expect(h.rows().at(-1)).toMatch(/^ {2}> x+_$/);
