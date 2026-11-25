@@ -397,8 +397,11 @@ doesn't open on its own then; each device's DevTools link is printed instead.
 
 `NO_COLOR` turns colour off and keeps the live console. `TLPT_ASCII=1` draws `*`, `` `- `` and
 ASCII bars in place of `●`, `⎿` and `▁▂▃`, for fonts that lack them (it is on by default for the
-Linux console and legacy Windows consoles). On a light background that sets `COLORFGBG` (rxvt,
-Konsole, some iTerm2 profiles), tlpt uses the terminal's own foreground instead of its sage.
+Linux console and legacy Windows consoles). On a light background tlpt uses the terminal's own
+foreground instead of its sage, which white would hide: the console asks the terminal its
+background colour as it starts (OSC 11, at most 120 ms), and a command that prints and exits reads
+`COLORFGBG` (rxvt, Konsole, some iTerm2 profiles). `TLPT_THEME=light` or `dark` settles it when
+either is wrong.
 
 Over SSH, tlpt doesn't try to open a browser on the far machine, and DevTools answers only on that
 machine's localhost: forward the port (`ssh -L 7070:localhost:7070 …`) and open the link `d` prints.

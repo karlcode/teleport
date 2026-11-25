@@ -1,6 +1,7 @@
 import { EventEmitter } from 'node:events';
 import { describe, expect, it } from 'vitest';
-import { frame, KeyReader, parseKeys, PlainScreen, region, TermScreen } from '../src/term.js';
+import { askBackground, frame, KeyReader, parseKeys, PlainScreen, region, TermScreen } from '../src/term.js';
+import { lightBackground, lightReply } from '../src/tui.js';
 
 describe('the live region', () => {
   it('erases down from where it waits, prints log lines, draws the region and returns to its first row', () => {
@@ -285,5 +286,50 @@ describe('region', () => {
   it('cuts long log lines one column short of the width', () => {
     const r = region([], ['x'.repeat(100)], [], 0, 20, 20);
     expect(r.lines[0]).toBe('x'.repeat(18) + '…');
+  });
+});
+
+describe("the terminal's background", () => {
+  // A stand-in for stdin and stdout: what is written is answered, as a terminal would.
+  const terminal = (answer: (asked: string) => string | null) => {
+    const inp = Object.assign(new EventEmitter(), { isTTY: true, raw: false, setRawMode(on: boolean) { inp.raw = on; }, setEncoding() {}, resume() {}, pause() {} });
+    const out = { write: (s: string) => (setTimeout(() => { const a = answer(s); if (a !== null) inp.emit('data', a); }, 1), true) };
+    return { inp, out };
+  };
+
+  it('is read from the answer to OSC 11, as light or dark', () => {
+    expect(lightReply('\x1b]11;rgb:ffff/ffff/ffff\x1b\\')).toBe(true);
+    expect(lightReply('\x1b]11;rgb:fdfd/f6f6/e3e3\x07')).toBe(true);
+    expect(lightReply('\x1b]11;rgb:1e1e/1e1e/1e1e\x07')).toBe(false);
+    expect(lightReply('\x1b]11;rgb:00/2b/36\x1b\\')).toBe(false);
+    expect(lightReply('\x1b[?62;22c')).toBe(null);
+    expect(lightReply('')).toBe(null);
+  });
+
+  it('is said outright by TLPT_THEME, ahead of COLORFGBG', () => {
+    expect(lightBackground({ TLPT_THEME: 'light' })).toBe(true);
+    expect(lightBackground({ TLPT_THEME: 'dark', COLORFGBG: '0;15' })).toBe(false);
+    expect(lightBackground({ COLORFGBG: '0;15' })).toBe(true);
+    expect(lightBackground({})).toBe(false);
+  });
+
+  it('is asked with a second question every terminal answers, so one that has no answer costs no wait', async () => {
+    const knows = terminal(() => '\x1b]11;rgb:ffff/ffff/ffff\x1b\\\x1b[?62;22c');
+    expect(lightReply(await askBackground(knows.inp, knows.out, 2000))).toBe(true);
+    expect(knows.inp.raw).toBe(false);
+    const started = Date.now();
+    const knowsNot = terminal(() => '\x1b[?1;2c');
+    expect(lightReply(await askBackground(knowsNot.inp, knowsNot.out, 2000))).toBe(null);
+    expect(Date.now() - started).toBeLessThan(500);
+    const silent = terminal(() => null);
+    expect(await askBackground(silent.inp, silent.out, 20)).toBe('');
+    expect(silent.inp.listenerCount('data')).toBe(0);
+  });
+
+  it('answers that come late are not keys', () => {
+    expect(parseKeys('\x1b]11;rgb:ffff/ffff/ffff\x1b\\\x1b[?62;22cc').map((k) => k.name)).toEqual(['c']);
+    const r = new KeyReader();
+    expect(r.feed('\x1b]11;rgb:ffff/ff')).toEqual([]);
+    expect(r.feed('ff/ffff\x07x').map((k) => k.name)).toEqual(['x']);
   });
 });

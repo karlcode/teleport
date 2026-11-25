@@ -68,8 +68,30 @@ export function paint(mode: Color, light = false) {
   };
 }
 
-/** A light terminal background, as rxvt, Konsole and some iTerm2 profiles say in COLORFGBG ("fg;bg"). */
-export const lightBackground = (env: NodeJS.ProcessEnv = process.env) => /(^|;)(7|15)$/.test(env.COLORFGBG ?? '');
+/** TLPT_THEME=light or dark: the person says which, and nothing is asked or guessed. */
+export const themeSaid = (env: NodeJS.ProcessEnv = process.env): boolean | null => (/^light$/i.test(env.TLPT_THEME ?? '') ? true : /^dark$/i.test(env.TLPT_THEME ?? '') ? false : null);
+
+/**
+ * A light terminal background, known without asking the terminal: what TLPT_THEME says, else what
+ * rxvt, Konsole and some iTerm2 profiles say in COLORFGBG ("fg;bg"). Most terminals set neither, so
+ * the console asks the terminal itself as it starts (term.askBackground, read by lightReply).
+ */
+export const lightBackground = (env: NodeJS.ProcessEnv = process.env) => themeSaid(env) ?? /(^|;)(7|15)$/.test(env.COLORFGBG ?? '');
+
+/**
+ * What a terminal answered when asked its background colour (OSC 11), as light or not; null when
+ * there is no answer in `reply`. Light is where black text has more contrast on it than white text
+ * would: a relative luminance above 0.18. Phosphor sage on a white background is 1.4:1.
+ */
+export function lightReply(reply: string): boolean | null {
+  const m = /\x1b\]11;rgba?:([0-9a-f]{1,4})\/([0-9a-f]{1,4})\/([0-9a-f]{1,4})/i.exec(reply);
+  if (!m) return null;
+  const lin = (h: string) => {
+    const c = parseInt(h, 16) / (16 ** h.length - 1);
+    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * lin(m[1]!) + 0.7152 * lin(m[2]!) + 0.0722 * lin(m[3]!) > 0.18;
+}
 
 // The glyph set lives in glyphs.ts, which text.ts reads too; re-exported here, where it is drawn.
 import { G } from './glyphs.js';

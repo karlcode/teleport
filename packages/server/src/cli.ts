@@ -13,16 +13,16 @@ import { serveMcp } from './mcp.js';
 import { MENU, REMOTE_KEYS, RUNNABLE, runnable, type Entry } from './menu.js';
 import { argsFromWords, COMMANDS, nearest, parseQ, Q_USAGE, request, runData, type Args, type Command } from './q.js';
 import { BASE, inspectUrl, lanAddress, startDevServer, type DevServer, type DevServerOptions } from './server.js';
-import { ESC_WAIT_MS, KeyReader, PlainScreen, TermScreen, type Key, type Screen } from './term.js';
+import { askBackground, ESC_WAIT_MS, KeyReader, PlainScreen, TermScreen, type Key, type Screen } from './term.js';
 import { truncate, width } from './text.js';
-import { G, header, helpView, lightBackground, paint, setGlyphs, wantsAscii, type Color } from './tui.js';
+import { G, header, helpView, lightBackground, lightReply, paint, setGlyphs, themeSaid, wantsAscii, type Color } from './tui.js';
 import { VERSION } from './version.js';
 import { keep } from './journal.js';
 
 // A live console on a terminal; plain lines when piped or logged (TERM=dumb counts as piped). Colour
 // follows each stream (https://no-color.org turns it off); glyphs and tones follow the terminal.
 setGlyphs(wantsAscii());
-const light = lightBackground();
+let light = lightBackground();
 const isTerminal = (s: NodeJS.WriteStream) => !!s.isTTY && process.env.TERM !== 'dumb';
 const depth = (terminal: boolean): Color =>
   !terminal || process.env.NO_COLOR ? 'none' : /truecolor|24bit/i.test(process.env.COLORTERM ?? '') || process.env.TERM_PROGRAM === 'iTerm.app' || process.env.WT_SESSION ? 'truecolor' : '256';
@@ -30,7 +30,7 @@ const live = isTerminal(process.stdout);
 const color = depth(live);
 // stderr may be a terminal while stdout is piped (`tlpt q capture | jq`): errors and q's spinner go there.
 const errLive = isTerminal(process.stderr);
-const errPaint = paint(depth(errLive), light);
+let errPaint = paint(depth(errLive), light);
 const cols = () => (live ? Math.max(40, process.stdout.columns ?? 80) : 100);
 const print = (lines: string[]) => console.log(lines.join('\n'));
 /** Prints and exits once stdout has taken it all: a pipe is written asynchronously, and exiting at
@@ -431,6 +431,15 @@ async function dev() {
   const lan = `${lanAddress()}:${port}`;
   // What an app's own teleport.init is given: this laptop on the network, or the address said with --via.
   const relay = via ? `${via.protocol === 'https:' ? 'wss' : 'ws'}://${via.host}` : lan;
+  // Sage ink on a white terminal is 1.4:1, and few terminals say they are light in COLORFGBG: ask this
+  // one, before the console takes the keyboard. TLPT_THEME settles it without asking.
+  if (live && themeSaid() === null) {
+    const said = lightReply(await askBackground());
+    if (said !== null && said !== light) {
+      light = said;
+      errPaint = paint(depth(errLive), light);
+    }
+  }
   screen = live ? new TermScreen() : new PlainScreen();
   // --tunnel: any vendor's tunnel command, which tlpt runs pointed at itself; its address is the device link.
   const ownTunnel: { run: RunningTunnel | null; url: string | null } = { run: null, url: null };

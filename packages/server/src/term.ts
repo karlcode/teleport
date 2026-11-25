@@ -123,6 +123,22 @@ export class KeyReader {
           i += PASTE_START.length;
           continue;
         }
+        // A terminal's answer to a question (its background colour, what it is), late or after a
+        // resize: not a key. Without this an OSC reply would be typed into the input, letter by letter.
+        if (rest[0] === ']') {
+          const end = /\x07|\x1b\\/.exec(rest);
+          if (!end) {
+            this.tail = s.slice(i).slice(0, 256);
+            return out;
+          }
+          i += 1 + end.index + end[0].length;
+          continue;
+        }
+        const reply = /^\[\?[0-9;]*[A-Za-z]/.exec(rest);
+        if (reply) {
+          i += 1 + reply[0].length;
+          continue;
+        }
         const m = /^(?:\[|O)([0-9;]*)([A-Za-z~])/.exec(rest);
         if (m) {
           const name = m[2] === '~' ? TILDE[m[1]!.split(';')[0]!] : CSI[m[2]!];
@@ -208,6 +224,39 @@ interface In {
   off?(ev: 'data', fn: (chunk: string | Buffer) => void): unknown;
   resume(): unknown;
   pause(): unknown;
+}
+
+/** How long a terminal has to say its background colour. One that knows the question answers in a few ms. */
+export const ASK_MS = 120;
+
+/**
+ * Asks the terminal its background colour (OSC 11) and what it is (DA1), and resolves with whatever
+ * it answered. Every terminal answers the second, and answers in order, so one that doesn't know the
+ * first is known at once, without waiting out `ms`. Run before the console takes the keyboard: the
+ * reply arrives as input. A reply later than `ms` is dropped by KeyReader, never read as keys.
+ */
+export function askBackground(inp: In = process.stdin, out: Pick<Out, 'write'> = process.stdout, ms = ASK_MS): Promise<string> {
+  return new Promise((resolve) => {
+    if (!inp.isTTY || !inp.setRawMode) return resolve('');
+    let got = '';
+    const done = () => {
+      clearTimeout(timer);
+      inp.off?.('data', onData);
+      inp.setRawMode!(false);
+      inp.pause();
+      resolve(got);
+    };
+    const onData = (chunk: string | Buffer) => {
+      got += chunk.toString();
+      if (/\x1b\[\?[0-9;]*c/.test(got)) done();
+    };
+    const timer = setTimeout(done, ms);
+    inp.setRawMode(true);
+    inp.setEncoding?.('utf8');
+    inp.on('data', onData);
+    inp.resume();
+    out.write('\x1b]11;?\x1b\\\x1b[c');
+  });
 }
 
 type Write = (chunk: unknown, ...rest: unknown[]) => boolean;
