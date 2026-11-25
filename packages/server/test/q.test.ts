@@ -1,3 +1,4 @@
+import { ensureKey } from '../src/key.js';
 import { describe, expect, it } from 'vitest';
 import { argsFromWords, COMMANDS, groupOf, latestLine, nearest, parseQ, Q_EXAMPLES, Q_USAGE, READ_COMMANDS, runQ, statusLines, usageOf } from '../src/q.js';
 import { width } from '../src/text.js';
@@ -13,8 +14,18 @@ describe('teleport q', () => {
   });
 
   it('says how to start teleport when none is running, and lists the commands for an unknown one', async () => {
+    // With a key, as on any machine teleport has run on: without one the answer is another line, and
+    // which this test got depended on whether a test in another file had made the key first.
+    ensureKey();
     await expect(runQ(['status'], 1)).rejects.toThrow(/no teleport on port 1 .*Start it with `tlpt`/);
     await expect(runQ(['nope'], 1)).rejects.toThrow(/no command nope[\s\S]*trial \[file\]/);
+  });
+
+  it('says so before doing any work here: verify asks teleport before ffmpeg makes its clips', async () => {
+    ensureKey();
+    const started = Date.now();
+    await expect(runQ(['verify'], 1)).rejects.toThrow(/no teleport on port 1 /);
+    expect(Date.now() - started).toBeLessThan(2000);
   });
 
   it('prints status as one short entry per device', () => {

@@ -83,6 +83,9 @@ async function loadSpec(file: string): Promise<Record<string, unknown>> {
 
 /** Plays the verify clips on the device, those whose names have one of the words, or all. */
 async function verify(only: string[], port: number, id: string | undefined, by?: Caller): Promise<{ verdicts: Verdict[]; notMade: Record<string, string> }> {
+  // Ask teleport first: with none running, the answer is one line at once, not after ffmpeg has made
+  // every clip (minutes, the first time) for a device that isn't there.
+  await request(port, 'live', { by });
   const { paths, failed } = ensureClips((s) => process.stderr.isTTY && process.stderr.write(`\r\x1b[K  ${s}`));
   const out: Verdict[] = [];
   for (const spec of verifySpecs(paths, only)) out.push(...verdicts((await request(port, 'trial', { id, by, body: { spec } })) as Parameters<typeof verdicts>[0]));
