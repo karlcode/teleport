@@ -10,24 +10,35 @@ the device. It also measures what matters on a device, like how long a key press
 ## Start
 
 ```sh
-npm install -g tlpt     # gives tlpt, tp and teleport: the same command
-tp 5173                 # the port your dev server runs on
+npm install -g tlpt     # gives tlpt, and tp and teleport as other names for it
+tlpt 5173               # the port your dev server runs on
 ```
 
-Or just `tp`: it finds a dev server on a common port, or waits until you type the port in it.
+Or just `tlpt`: it finds a dev server on a common port, or waits until you type the port in it.
 
 ```
   ◎ teleport  → localhost:5173
   open on the device  http://192.168.1.20:7070/
 ```
 
-Open that address on the device. When it connects, Chrome DevTools opens on your laptop, a card for
-the device appears at the top (its state, engine, screen and cores), and its main thread, memory and
-key response run live at the bottom of the terminal. On the left are five groups: measure,
-experiment, video, input and inspect; `→` or Enter opens one. The last line is an input, always open:
-type a command or its letter, then Enter (`c` captures, `t` lists things to try, `r` is the remote,
-`h` lists every experiment so far). Nothing needs a second terminal; `tlpt <command>` runs the same
-thing from one if you want it. `?` explains what the colours and numbers mean.
+Open that address on the device. When it connects, Chrome DevTools opens on your laptop, and the
+terminal shows the device: a card at the top (its state, engine, screen and cores) and its main
+thread, memory and key response live at the bottom.
+
+Everything else is typed on the last line, which is always open:
+
+| Type | To |
+|---|---|
+| `c` | capture 10 s of frames and key presses |
+| `t` | list things to try, each flipped on the device and measured both ways |
+| `r` | make your keyboard the remote |
+| `e` | list what the page threw |
+| `h` | list every experiment so far |
+| `?` | see what the colours and numbers mean |
+
+A letter is a short way to type a command's name; the list on the left has all of them, in five
+groups (`→` or Enter opens one). Nothing needs a second terminal, and `tlpt <command>` runs the same
+thing from one if you want it.
 
 Any package manager works, because tlpt has no dependencies: `bun add -g tlpt`, `pnpm add -g tlpt`
 or `yarn global add tlpt`. To try it without installing: `npx tlpt`, `bunx tlpt` or `pnpm dlx tlpt`.
