@@ -433,7 +433,7 @@ async function dev() {
   const relay = via ? `${via.protocol === 'https:' ? 'wss' : 'ws'}://${via.host}` : lan;
   // Sage ink on a white terminal is 1.4:1, and few terminals say they are light in COLORFGBG: ask this
   // one, before the console takes the keyboard. TLPT_THEME settles it without asking.
-  if (live && themeSaid() === null) {
+  if (live && color !== 'none' && themeSaid() === null) {
     const said = lightReply(await askBackground());
     if (said !== null && said !== light) {
       light = said;

@@ -60,13 +60,25 @@ export function paint(mode: Color, light = false) {
     accent: (s: string) => (mode === 'none' ? s : light ? `\x1b[1m${s}\x1b[22m` : `\x1b[${mode === 'truecolor' ? '38;2;63;212;192' : '38;5;79'}m${s}\x1b[39m`),
     /** Keys that only read what this laptop already has. */
     info: (s: string) => (mode === 'none' || light ? s : `\x1b[${mode === 'truecolor' ? '38;2;122;170;247' : '38;5;111'}m${s}\x1b[39m`),
-    /** Status colours, kept to the few places that need a glance: good, warn, bad. */
-    good: (s: string) => (mode === 'none' ? s : `\x1b[${mode === 'truecolor' ? '38;2;120;200;140' : '38;5;114'}m${s}\x1b[39m`),
-    warn: (s: string) => (mode === 'none' ? s : `\x1b[${mode === 'truecolor' ? '38;2;242;173;72' : '38;5;215'}m${s}\x1b[39m`),
-    bad: (s: string) => (mode === 'none' ? s : `\x1b[${mode === 'truecolor' ? '38;2;240;110;90' : '38;5;203'}m${s}\x1b[39m`),
+    /**
+     * Status colours, kept to the few places that need a glance: good, warn, bad. On a light background
+     * the dark-theme ones are 2.0, 1.9 and 3.0 to 1 against white, so each has a darker one there:
+     * 5.3, 6.9 and 6.5 to 1.
+     */
+    good: state(mode, light, [[120, 200, 140], 114], [[30, 123, 58], 28]),
+    warn: state(mode, light, [[242, 173, 72], 215], [[122, 82, 0], 94]),
+    bad: state(mode, light, [[240, 110, 90], 203], [[179, 38, 30], 124]),
     link: (url: string, text = url) => (mode === 'none' ? text : `\x1b]8;;${url}\x1b\\\x1b[4m${text}\x1b[24m\x1b]8;;\x1b\\`),
   };
 }
+
+type Ink = readonly [readonly [number, number, number], number];
+/** A state's colour for the background it is on: true colour, or its 256-colour stand-in. */
+const state = (mode: Color, light: boolean, dark: Ink, onLight: Ink) => (s: string) => {
+  if (mode === 'none') return s;
+  const [rgb, n] = light ? onLight : dark;
+  return `\x1b[${mode === 'truecolor' ? `38;2;${rgb.join(';')}` : `38;5;${n}`}m${s}\x1b[39m`;
+};
 
 /** TLPT_THEME=light or dark: the person says which, and nothing is asked or guessed. */
 export const themeSaid = (env: NodeJS.ProcessEnv = process.env): boolean | null => (/^light$/i.test(env.TLPT_THEME ?? '') ? true : /^dark$/i.test(env.TLPT_THEME ?? '') ? false : null);

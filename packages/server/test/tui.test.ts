@@ -137,3 +137,16 @@ describe('help layout', () => {
     for (const cols of [120, 100, 80, 60, 50, 40]) for (const l of helpView(d, cols, 'truecolor')) expect(width(l)).toBeLessThanOrEqual(Math.min(cols, 100) - 1);
   });
 });
+
+describe('state colours on a light background', () => {
+  it('are darker ones, since the dark theme\'s are 2 to 1 against white', () => {
+    const dark = paint('truecolor');
+    const light = paint('truecolor', true);
+    expect(dark.warn('x')).toBe('\x1b[38;2;242;173;72mx\x1b[39m');
+    expect(light.warn('x')).toBe('\x1b[38;2;122;82;0mx\x1b[39m');
+    expect(light.good('x')).toBe('\x1b[38;2;30;123;58mx\x1b[39m');
+    expect(light.bad('x')).toBe('\x1b[38;2;179;38;30mx\x1b[39m');
+    expect(paint('256', true).bad('x')).toBe('\x1b[38;5;124mx\x1b[39m');
+    expect(paint('none', true).bad('x')).toBe('x');
+  });
+});
